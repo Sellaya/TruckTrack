@@ -1,4 +1,4 @@
-import type { Transaction, Trip, Unit, Driver, Location, WhatsAppMessage, ExtractedReceiptData } from './types';
+import type { Transaction, Trip, Unit, Driver, Location } from './types';
 import * as db from './supabase/database';
 
 // Helper to generate dates relative to now
@@ -348,125 +348,6 @@ export async function getTransactionsByDriver(driverId: string): Promise<Transac
   return mockTransactions.filter(t => t.driverId === driverId);
 }
 
-// WhatsApp Messages
-export async function getUnprocessedWhatsAppMessages(): Promise<WhatsAppMessage[]> {
-  if (!isSupabaseConfigured()) {
-    console.warn('Supabase not configured, returning empty array')
-    return []
-  }
-
-  try {
-    const data = await db.getUnprocessedWhatsAppMessages()
-    return data
-  } catch (error) {
-    console.error('Error fetching unprocessed WhatsApp messages:', error)
-    return []
-  }
-}
-
-export async function getWhatsAppMessagesByDriver(driverId: string): Promise<WhatsAppMessage[]> {
-  if (!isSupabaseConfigured()) {
-    console.warn('Supabase not configured, returning empty array')
-    return []
-  }
-
-  try {
-    const data = await db.getWhatsAppMessagesByDriver(driverId)
-    return data
-  } catch (error) {
-    console.error('Error fetching WhatsApp messages by driver:', error)
-    return []
-  }
-}
-
-export async function createWhatsAppMessage(data: {
-  phone_number: string
-  message_type: 'image' | 'text'
-  image_url?: string
-  raw_ocr_text?: string
-}): Promise<WhatsAppMessage | null> {
-  if (!isSupabaseConfigured()) {
-    console.warn('Supabase not configured')
-    return null
-  }
-
-  try {
-    const message = await db.createWhatsAppMessage(data)
-    return message
-  } catch (error) {
-    console.error('Error creating WhatsApp message:', error)
-    return null
-  }
-}
-
-export async function processWhatsAppMessage(messageId: string, extractedData: ExtractedReceiptData): Promise<void> {
-  if (!isSupabaseConfigured()) {
-    console.warn('Supabase not configured')
-    throw new Error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file and restart the dev server.')
-  }
-
-  try {
-    // First, get the message to access driver_id and trip_id
-    // Query all unprocessed messages and find the one we need
-    const messages = await db.getUnprocessedWhatsAppMessages()
-    const message = messages.find(m => m.id === messageId)
-    
-    if (!message) {
-      throw new Error(`WhatsApp message with ID ${messageId} not found or already processed`)
-    }
-
-    if (!message.driverId) {
-      throw new Error(`WhatsApp message ${messageId} does not have an associated driver`)
-    }
-
-    // Update message with extracted_data
-    await db.updateWhatsAppMessage(messageId, {
-      extractedData: extractedData,
-    })
-
-    // Validate extracted data has required fields for expense creation
-    if (!extractedData.amount || !extractedData.category) {
-      throw new Error(`Invalid extracted data: amount and category are required`)
-    }
-
-    // Create expense transaction from extracted data
-    const transaction: Omit<Transaction, 'id'> = {
-      type: 'expense',
-      category: extractedData.category,
-      description: extractedData.vendor || 'Receipt expense',
-      amount: extractedData.amount,
-      originalCurrency: extractedData.currency || 'USD',
-      date: extractedData.date || new Date().toISOString(),
-      driverId: message.driverId,
-      tripId: message.tripId,
-      vendorName: extractedData.vendor,
-      notes: extractedData.location ? `Location: ${extractedData.location}` : undefined,
-      receiptUrl: message.imageUrl,
-    }
-
-    const createdTransaction = await db.createTransaction(transaction)
-
-    if (!createdTransaction) {
-      throw new Error('Failed to create expense transaction from WhatsApp message')
-    }
-
-    // Link message to expense (this also marks it as processed)
-    // Pass tripId if available, otherwise undefined (linkWhatsAppMessageToExpense will set to null)
-    await db.linkWhatsAppMessageToExpense(messageId, createdTransaction.id, message.tripId)
-  } catch (error) {
-    console.error('Error processing WhatsApp message:', error)
-    // Update message with error
-    try {
-      await db.updateWhatsAppMessage(messageId, {
-        errorMessage: error instanceof Error ? error.message : 'Unknown error processing message',
-      })
-    } catch (updateError) {
-      console.error('Error updating message with error:', updateError)
-    }
-    throw error
-  }
-}
-
 // Re-export database functions for direct use (these will use Supabase if configured)
 export {
   createUnit,
@@ -482,10 +363,7 @@ export {
   createDriver,
   updateDriver,
   deleteDriver,
-  updateWhatsAppMessage,
-  linkWhatsAppMessageToExpense,
   getTripById,
-  getWhatsAppMessageById,
 } from './supabase/database';
 
 // Legacy exports for backward compatibility (will be deprecated)

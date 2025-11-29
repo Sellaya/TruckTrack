@@ -59,49 +59,4 @@ export type Driver = {
   licenseNumber?: string;
   createdAt: string; // ISO string
   isActive: boolean;
-  whatsappPhone?: string; // WhatsApp phone number for receiving receipt images
-};
-
-// Extracted receipt data from OCR processing
-export type ExtractedReceiptData = {
-  amount?: number;
-  vendor?: string;
-  date?: string; // ISO string
-  category?: string;
-  location?: string;
-  currency?: Currency;
-};
-
-// WhatsApp message database row format (snake_case)
-export interface WhatsAppMessageRow {
-  id: string;
-  phone_number: string;
-  driver_id: string | null;
-  message_type: 'image' | 'text';
-  image_url: string | null;
-  raw_ocr_text: string | null;
-  extracted_data: ExtractedReceiptData | null;
-  processed: boolean;
-  trip_id: string | null;
-  expense_id: string | null;
-  error_message: string | null;
-  created_at: string; // ISO string
-  processed_at: string | null; // ISO string
-}
-
-// WhatsApp message application format (camelCase)
-export type WhatsAppMessage = {
-  id: string;
-  phoneNumber: string; // The sender's phone number
-  driverId?: string; // Associated driver, matched by whatsapp_phone number
-  messageType: 'image' | 'text'; // Type of message: image (receipt) or text
-  imageUrl?: string; // URL to the uploaded image in Supabase Storage
-  rawOcrText?: string; // Raw text extracted from OCR processing
-  extractedData?: ExtractedReceiptData; // Structured JSON data: {amount, vendor, date, category, location, currency}
-  processed: boolean; // Whether the message has been processed into an expense
-  tripId?: string; // Associated trip if the expense was linked to a trip
-  expenseId?: string; // Link to the created expense transaction if processed
-  errorMessage?: string; // Error message if processing failed
-  createdAt: string; // ISO string
-  processedAt?: string; // ISO string
 };
