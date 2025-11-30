@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface DatePickerProps {
   value?: string
@@ -34,6 +35,7 @@ export function DatePicker({
   minDate,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const isMobile = useIsMobile()
   
   // Parse date value - handle both ISO string and yyyy-MM-dd format
   const date = React.useMemo(() => {
@@ -63,22 +65,43 @@ export function DatePicker({
     }
   }, [value]);
 
+  // Format date for native input (yyyy-MM-dd)
+  const nativeInputValue = React.useMemo(() => {
+    if (!date) return '';
+    return format(date, 'yyyy-MM-dd');
+  }, [date]);
+
+  // Get min date for native input
+  const nativeMinDate = React.useMemo(() => {
+    if (minDate) {
+      return format(minDate, 'yyyy-MM-dd');
+    }
+    // Default: today
+    return format(new Date(), 'yyyy-MM-dd');
+  }, [minDate]);
+
+  // Handle native input change
+  const handleNativeInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    if (inputValue) {
+      onChange(inputValue);
+    }
+  }, [onChange]);
+
   // Normalize dates for comparison (remove time component)
   const normalizeDate = React.useCallback((d: Date): Date => {
     const normalized = new Date(d);
     normalized.setHours(0, 0, 0, 0);
-    normalized.setMinutes(0, 0, 0);
-    normalized.setSeconds(0, 0);
+    normalized.setMinutes(0, 0);
+    normalized.setSeconds(0);
     normalized.setMilliseconds(0);
     return normalized;
   }, []);
 
   const handleDateSelect = React.useCallback((selectedDate: Date | undefined) => {
-    console.log('Date selected:', selectedDate);
     if (selectedDate && !isNaN(selectedDate.getTime())) {
       // Format as yyyy-MM-dd for consistent storage
       const formattedDate = format(selectedDate, "yyyy-MM-dd");
-      console.log('Formatted date:', formattedDate);
       onChange(formattedDate);
       // Close popover after a short delay to ensure state updates
       setTimeout(() => {
@@ -114,6 +137,35 @@ export function DatePicker({
     }
   }, [minDate, normalizeDate]);
 
+  // Use native date input on mobile for better UX and reliability
+  if (isMobile) {
+    return (
+      <div className="relative w-full">
+        <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+        <input
+          id={id}
+          type="date"
+          value={nativeInputValue}
+          onChange={handleNativeInputChange}
+          min={nativeMinDate}
+          disabled={disabled}
+          required={required}
+          className={cn(
+            "flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background",
+            "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
+            "placeholder:text-muted-foreground",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            "md:text-sm pl-9 pr-3",
+            !nativeInputValue && "text-muted-foreground",
+            className
+          )}
+        />
+      </div>
+    );
+  }
+
+  // Desktop: Use calendar popover
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -133,9 +185,10 @@ export function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-auto p-0 shadow-lg" 
+        className="w-auto p-0 shadow-lg z-[100]" 
         align="start"
         side="bottom"
+        sideOffset={4}
       >
         <Calendar
           mode="single"

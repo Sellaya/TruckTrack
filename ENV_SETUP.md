@@ -50,3 +50,4 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_SJYRejCo8pxWYDW574wgLw_M2AkOkMs
 
 
 
+
