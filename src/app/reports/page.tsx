@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet, Calendar, Filter, User, Truck, MapPin, Route, TrendingUp, X, Receipt } from "lucide-react";
+import { Download, FileSpreadsheet, Calendar, Filter, User, Truck, MapPin, Route, TrendingUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getTransactions, getTrips, getDrivers, getUnits } from '@/lib/data';
 import type { Trip, Transaction, Driver, Unit } from '@/lib/types';
@@ -27,6 +26,8 @@ import { DistanceDisplay } from '@/components/ui/distance-display';
 import { RouteDisplay } from '@/components/ui/route-display';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -55,7 +56,10 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [driverFilter, setDriverFilter] = useState<string>('all');
+  const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>([]);
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<'all' | 'expense' | 'income'>('all');
 
   useEffect(() => {
     const loadData = async () => {
@@ -85,6 +89,20 @@ export default function ReportsPage() {
 
     loadData();
   }, [toast]);
+
+  // Get unique expense categories from all transactions
+  const expenseCategories = useMemo(() => {
+    const categories = new Set<string>();
+    transactions.forEach(t => {
+      if (t.type === 'expense' && t.category) {
+        categories.add(t.category);
+      }
+    });
+    // Add standard categories even if not in transactions yet
+    const standardCategories = ['Fuel', 'Repairs & Maintenance', 'Tires', 'Tolls', 'Parking', 'Insurance', 'Permits', 'Driver pay / subcontractor pay', 'Lodging', 'Meals', 'Miscellaneous'];
+    standardCategories.forEach(cat => categories.add(cat));
+    return Array.from(categories).sort();
+  }, [transactions]);
 
   // Filter trips based on selected filters
   const filteredTrips = trips.filter(trip => {
@@ -117,11 +135,80 @@ export default function ReportsPage() {
       if (tripStatus !== statusFilter) return false;
     }
 
-    // Driver filter
-    if (driverFilter !== 'all' && trip.driverId !== driverFilter) {
+    // Multiple drivers filter
+    if (selectedDrivers.length > 0) {
+      if (!trip.driverId || !selectedDrivers.includes(trip.driverId)) {
+        return false;
+      }
+    }
+
+    // Multiple units filter
+    if (selectedUnits.length > 0) {
+      if (!trip.unitId || !selectedUnits.includes(trip.unitId)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Filter transactions/expenses based on filters
+  const filteredTransactions = transactions.filter(transaction => {
+    // Transaction type filter
+    if (transactionTypeFilter !== 'all' && transaction.type !== transactionTypeFilter) {
       return false;
     }
 
+    // Expense category filter (only applies to expenses)
+    if (transaction.type === 'expense' && selectedExpenseCategories.length > 0) {
+      if (!selectedExpenseCategories.includes(transaction.category)) {
+        return false;
+      }
+    }
+
+    // Unit filter (for transactions with unitId)
+    if (selectedUnits.length > 0 && transaction.unitId) {
+      if (!selectedUnits.includes(transaction.unitId)) {
+        return false;
+      }
+    }
+
+    // Driver filter (for transactions with driverId)
+    if (selectedDrivers.length > 0 && transaction.driverId) {
+      if (!selectedDrivers.includes(transaction.driverId)) {
+        return false;
+      }
+    }
+
+    // Date range filter
+    if (startDate) {
+      const transactionDate = new Date(transaction.date);
+      const filterStartDate = new Date(startDate);
+      if (transactionDate < filterStartDate) return false;
+    }
+    if (endDate) {
+      const transactionDate = new Date(transaction.date);
+      const filterEndDate = new Date(endDate);
+      filterEndDate.setHours(23, 59, 59, 999);
+      if (transactionDate > filterEndDate) return false;
+    }
+
+    return true;
+  });
+
+  // Filter trips to only show those that match transaction filters or have matching transactions
+  const finalFilteredTrips = filteredTrips.filter(trip => {
+    // If we have transaction-level filters, check if trip has matching transactions
+    if (transactionTypeFilter !== 'all' || selectedExpenseCategories.length > 0) {
+      const tripTransactions = filteredTransactions.filter(t => t.tripId === trip.id);
+      if (tripTransactions.length === 0) {
+        // Trip has no matching transactions, but we still show it if it matches trip-level filters
+        // However, if expense category is filtered, only show trips with matching expenses
+        if (selectedExpenseCategories.length > 0 && transactionTypeFilter === 'expense') {
+          return false;
+        }
+      }
+    }
     return true;
   });
 
@@ -189,7 +276,7 @@ export default function ReportsPage() {
 
   // Export trips to CSV
   const handleExportTrips = () => {
-    if (filteredTrips.length === 0) {
+    if (finalFilteredTrips.length === 0) {
       toast({
         title: "No Trips to Export",
         description: "Please adjust your filters or add trips to export.",
@@ -208,8 +295,11 @@ export default function ReportsPage() {
       [`Generated: ${format(new Date(), 'MMM d, yyyy HH:mm:ss')}`],
       [`Date Range: ${startDate ? format(new Date(startDate), 'MMM d, yyyy') : 'All'} - ${endDate ? format(new Date(endDate), 'MMM d, yyyy') : 'All'}`],
       [`Status Filter: ${statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`],
-      [`Driver Filter: ${driverFilter === 'all' ? 'All' : getDriverName(driverFilter)}`],
-      [`Total Trips: ${filteredTrips.length}`],
+      [`Driver Filter: ${selectedDrivers.length === 0 ? 'All' : selectedDrivers.map(id => getDriverName(id)).join(', ')}`],
+      [`Unit Filter: ${selectedUnits.length === 0 ? 'All' : selectedUnits.map(id => getUnitName(id)).join(', ')}`],
+      [`Expense Category Filter: ${selectedExpenseCategories.length === 0 ? 'All' : selectedExpenseCategories.join(', ')}`],
+      [`Transaction Type Filter: ${transactionTypeFilter === 'all' ? 'All' : transactionTypeFilter.charAt(0).toUpperCase() + transactionTypeFilter.slice(1)}`],
+      [`Total Trips: ${finalFilteredTrips.length}`],
       [],
       ['=== TRIP SUMMARY ==='],
       [],
@@ -217,7 +307,7 @@ export default function ReportsPage() {
     ];
 
     // Add trip summary rows
-    filteredTrips.forEach(trip => {
+    finalFilteredTrips.forEach(trip => {
       const expenses = getTripExpenses(trip.id);
       const totalPrimary = getTripTotalExpenses(trip.id);
       const totalCAD = expenses.reduce((sum, e) => {
@@ -259,7 +349,7 @@ export default function ReportsPage() {
     csvRows.push(['Trip ID', 'Trip Name', 'Expense ID', 'Date', 'Description', 'Category', 'Amount (Original Currency)', 'Currency', 'Amount (CAD)', 'Amount (USD)', 'Vendor Name', 'Notes', 'Receipt URL']);
 
     // Add expense detail rows
-    filteredTrips.forEach(trip => {
+    finalFilteredTrips.forEach(trip => {
       const expenses = getTripExpenses(trip.id).sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
@@ -291,8 +381,8 @@ export default function ReportsPage() {
     csvRows.push(['=== SUMMARY TOTALS ===']);
     csvRows.push([]);
     
-    const totalExpensesPrimary = filteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0);
-    const allExpenses = filteredTrips.flatMap(trip => getTripExpenses(trip.id));
+    const totalExpensesPrimary = finalFilteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0);
+    const allExpenses = finalFilteredTrips.flatMap(trip => getTripExpenses(trip.id));
     const totalCAD = allExpenses.reduce((sum, e) => {
       const converted = convertCurrency(e.amount, e.originalCurrency, 'CAD', cadToUsdRate, usdToCadRate);
       return sum + converted;
@@ -301,9 +391,9 @@ export default function ReportsPage() {
       const converted = convertCurrency(e.amount, e.originalCurrency, 'USD', cadToUsdRate, usdToCadRate);
       return sum + converted;
     }, 0);
-    const totalDistance = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
+    const totalDistance = finalFilteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
 
-    csvRows.push(['Total Trips', filteredTrips.length.toString()]);
+    csvRows.push(['Total Trips', finalFilteredTrips.length.toString()]);
     csvRows.push(['Total Distance (miles)', totalDistance.toFixed(2)]);
     csvRows.push(['Total Distance (km)', (totalDistance * 1.60934).toFixed(2)]);
     csvRows.push([`Total Expenses (${primaryCurrency})`, formatCurrency(totalExpensesPrimary, primaryCurrency).replace(/[^\d.-]/g, '')]);
@@ -341,7 +431,7 @@ export default function ReportsPage() {
 
     toast({
       title: "Report Downloaded",
-      description: `${filteredTrips.length} trip(s) exported successfully. Ready to share with your accountant.`,
+      description: `${finalFilteredTrips.length} trip(s) exported successfully. Ready to share with your accountant.`,
     });
   };
 
@@ -349,13 +439,16 @@ export default function ReportsPage() {
     setStartDate('');
     setEndDate('');
     setStatusFilter('all');
-    setDriverFilter('all');
+    setSelectedDrivers([]);
+    setSelectedUnits([]);
+    setSelectedExpenseCategories([]);
+    setTransactionTypeFilter('all');
   };
 
-  const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || driverFilter !== 'all';
-  const totalDistance = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
-  const totalExpenses = filteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0);
-  const totalExpenseRecords = filteredTrips.reduce((sum, trip) => sum + getTripExpenses(trip.id).length, 0);
+  const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || selectedDrivers.length > 0 || selectedUnits.length > 0 || selectedExpenseCategories.length > 0 || transactionTypeFilter !== 'all';
+  const totalDistance = finalFilteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
+  const totalExpenses = finalFilteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0);
+  const totalExpenseRecords = finalFilteredTrips.reduce((sum, trip) => sum + getTripExpenses(trip.id).length, 0);
 
   return (
     <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
@@ -364,30 +457,19 @@ export default function ReportsPage() {
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
-            {filteredTrips.length > 0 && (
-              <span className="text-sm text-gray-500">({filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'})</span>
+            {finalFilteredTrips.length > 0 && (
+              <span className="text-sm text-gray-500">({finalFilteredTrips.length} {finalFilteredTrips.length === 1 ? 'trip' : 'trips'})</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline"
-              onClick={() => router.push('/reports/ifta')}
-              className="h-9 px-4 rounded-md font-medium"
-            >
-              <Receipt className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">IFTA Reports</span>
-              <span className="sm:hidden">IFTA</span>
-            </Button>
-            <Button 
-              onClick={handleExportTrips} 
-              disabled={isLoading || filteredTrips.length === 0}
-              className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Export Report</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
-          </div>
+          <Button 
+            onClick={handleExportTrips} 
+            disabled={isLoading || finalFilteredTrips.length === 0}
+            className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Export Report</span>
+            <span className="sm:hidden">Export</span>
+          </Button>
         </div>
       </div>
 
@@ -466,18 +548,51 @@ export default function ReportsPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Driver</Label>
-                        <Select value={driverFilter} onValueChange={setDriverFilter}>
+                        <Label className="text-sm font-medium">Drivers</Label>
+                        <MultiSelect
+                          options={drivers.filter(d => d.isActive).map(driver => ({
+                            value: driver.id,
+                            label: driver.name,
+                          }))}
+                          selected={selectedDrivers}
+                          onSelectionChange={setSelectedDrivers}
+                          placeholder="Select drivers..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Units</Label>
+                        <MultiSelect
+                          options={units.map(unit => ({
+                            value: unit.id,
+                            label: `${unit.make} ${unit.year} ${unit.model}`,
+                          }))}
+                          selected={selectedUnits}
+                          onSelectionChange={setSelectedUnits}
+                          placeholder="Select units..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Expense Categories</Label>
+                        <MultiSelect
+                          options={expenseCategories.map(cat => ({
+                            value: cat,
+                            label: cat,
+                          }))}
+                          selected={selectedExpenseCategories}
+                          onSelectionChange={setSelectedExpenseCategories}
+                          placeholder="Select categories..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Transaction Type</Label>
+                        <Select value={transactionTypeFilter} onValueChange={(value: 'all' | 'expense' | 'income') => setTransactionTypeFilter(value)}>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="All Drivers" />
+                            <SelectValue placeholder="All Types" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All Drivers</SelectItem>
-                            {drivers.filter(d => d.isActive).map(driver => (
-                              <SelectItem key={driver.id} value={driver.id}>
-                                {driver.name}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="expense">Expenses Only</SelectItem>
+                            <SelectItem value="income">Income Only</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -528,17 +643,44 @@ export default function ReportsPage() {
                   <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={driverFilter} onValueChange={setDriverFilter}>
-                <SelectTrigger className="h-9 min-w-[160px] bg-white border-gray-300 flex-shrink-0">
-                  <SelectValue placeholder="All Drivers" />
+              <MultiSelect
+                options={drivers.filter(d => d.isActive).map(driver => ({
+                  value: driver.id,
+                  label: driver.name,
+                }))}
+                selected={selectedDrivers}
+                onSelectionChange={setSelectedDrivers}
+                placeholder="All Drivers"
+                className="h-9 min-w-[180px] flex-shrink-0"
+              />
+              <MultiSelect
+                options={units.map(unit => ({
+                  value: unit.id,
+                  label: `${unit.make} ${unit.year}`,
+                }))}
+                selected={selectedUnits}
+                onSelectionChange={setSelectedUnits}
+                placeholder="All Units"
+                className="h-9 min-w-[180px] flex-shrink-0"
+              />
+              <MultiSelect
+                options={expenseCategories.map(cat => ({
+                  value: cat,
+                  label: cat,
+                }))}
+                selected={selectedExpenseCategories}
+                onSelectionChange={setSelectedExpenseCategories}
+                placeholder="All Categories"
+                className="h-9 min-w-[180px] flex-shrink-0"
+              />
+              <Select value={transactionTypeFilter} onValueChange={(value: 'all' | 'expense' | 'income') => setTransactionTypeFilter(value)}>
+                <SelectTrigger className="h-9 w-36 bg-white border-gray-300 flex-shrink-0">
+                  <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Drivers</SelectItem>
-                  {drivers.filter(d => d.isActive).map(driver => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      {driver.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="expense">Expenses Only</SelectItem>
+                  <SelectItem value="income">Income Only</SelectItem>
                 </SelectContent>
               </Select>
               {hasActiveFilters && (
@@ -555,7 +697,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Summary Metrics - Monday.com Style */}
-            {filteredTrips.length > 0 && (
+            {finalFilteredTrips.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-2">
@@ -564,7 +706,7 @@ export default function ReportsPage() {
                     </div>
                     <p className="text-sm text-gray-600 font-medium">Total Trips</p>
                   </div>
-                  <p className="text-2xl font-semibold text-gray-900">{filteredTrips.length}</p>
+                  <p className="text-2xl font-semibold text-gray-900">{finalFilteredTrips.length}</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-2 mb-2">
@@ -604,7 +746,7 @@ export default function ReportsPage() {
             )}
 
             {/* Trips Section */}
-            {filteredTrips.length === 0 ? (
+            {finalFilteredTrips.length === 0 ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg font-medium text-gray-900 mb-1">
@@ -637,7 +779,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredTrips.slice(0, 10).map(trip => (
+                          {finalFilteredTrips.slice(0, 10).map(trip => (
                             <TableRow key={trip.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                               <TableCell className="font-medium text-gray-900 py-3">
                                 <div className="flex items-center gap-2">
@@ -684,7 +826,7 @@ export default function ReportsPage() {
 
                 {/* Mobile: Card View */}
                 <div className="lg:hidden space-y-3">
-                  {filteredTrips.slice(0, 10).map(trip => (
+                  {finalFilteredTrips.slice(0, 10).map(trip => (
                     <div key={trip.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                       <div className="space-y-3">
                         {/* Header */}
@@ -753,10 +895,10 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Footer Note */}
-                {filteredTrips.length > 10 && (
+                {finalFilteredTrips.length > 10 && (
                   <div className="mt-4 text-center">
                     <p className="text-sm text-gray-600">
-                      Showing first 10 trips. All <span className="font-medium">{filteredTrips.length}</span> trips will be included in the export.
+                      Showing first 10 trips. All <span className="font-medium">{finalFilteredTrips.length}</span> trips will be included in the export.
                     </p>
                   </div>
                 )}

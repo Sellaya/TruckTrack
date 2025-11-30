@@ -301,3 +301,44 @@
  * - Touch targets minimum 44px height/width
  * - Generous spacing on mobile (at least 16px between major sections)
  */
+
+/* ========================================
+   NATIVE DATE INPUT STYLING - Mobile First
+   ======================================== */
+@layer base {
+  /* Native date input improvements for mobile - Monday.com style */
+  input[type="date"] {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+    color-scheme: light;
+  }
+
+  /* Mobile date input - ensure proper sizing and usability */
+  @media (max-width: 1023px) {
+    input[type="date"] {
+      font-size: 16px !important; /* Prevents zoom on iOS Safari */
+      min-height: 44px; /* iOS touch target minimum */
+      width: 100% !important;
+    }
+    
+    /* Ensure date picker indicator is visible and touchable */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 1;
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      margin-left: 8px;
+    }
+  }
+
+  /* Desktop date input styling */
+  @media (min-width: 1024px) {
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 1;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+    }
+  }
+}

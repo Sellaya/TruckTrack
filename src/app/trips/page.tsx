@@ -918,9 +918,9 @@ function TripsPageContent(): React.JSX.Element {
                     <Calendar className="h-4 w-4 text-primary" />
                     <Label className="text-sm font-semibold">Schedule</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="startDate" className="text-xs">Start Date *</Label>
+                      <Label htmlFor="startDate" className="text-sm font-medium">Start Date *</Label>
                       <DatePicker
                         id="startDate"
                         value={startDate}
@@ -931,7 +931,7 @@ function TripsPageContent(): React.JSX.Element {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="endDate" className="text-xs">End Date *</Label>
+                      <Label htmlFor="endDate" className="text-sm font-medium">End Date *</Label>
                       <DatePicker
                         id="endDate"
                         value={endDate}
@@ -1220,23 +1220,23 @@ function TripsPageContent(): React.JSX.Element {
           </div>
 
           {/* Date Range */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2 w-full sm:w-auto sm:flex-shrink-0">
             <DatePicker
               id="filterStartDate"
               value={filterStartDate}
               onChange={setFilterStartDate}
               placeholder="Start date"
               minDate={new Date(1900, 0, 1)}
-              className="w-36 h-9"
+              className="w-full sm:w-36 sm:h-9"
             />
-            <span className="text-gray-400 flex-shrink-0">-</span>
+            <span className="text-gray-400 flex-shrink-0 hidden sm:inline">-</span>
             <DatePicker
               id="filterEndDate"
               value={filterEndDate}
               onChange={setFilterEndDate}
               placeholder="End date"
               minDate={filterStartDate ? new Date(filterStartDate) : new Date(1900, 0, 1)}
-              className="w-36 h-9"
+              className="w-full sm:w-36 sm:h-9"
             />
           </div>
 

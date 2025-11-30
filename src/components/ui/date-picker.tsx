@@ -11,7 +11,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useIsMobile } from "@/hooks/use-mobile"
 
 interface DatePickerProps {
   value?: string
@@ -22,6 +21,52 @@ interface DatePickerProps {
   id?: string
   required?: boolean
   minDate?: Date // Minimum selectable date
+}
+
+// Check if device is mobile/tablet - more reliable detection
+function useIsMobileDevice() {
+  // Default to mobile on first render to avoid flash of desktop version
+  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
+    // SSR-safe: assume mobile initially if we can check
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1024
+    }
+    return true // Default to mobile on server
+  })
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      // Use screen width as primary indicator - tablets and phones
+      const width = window.innerWidth
+      const isSmallScreen = width < 1024
+      
+      // Also check for touch capability
+      const isTouchDevice = 'ontouchstart' in window || 
+                           (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+                           ('msMaxTouchPoints' in navigator && (navigator as any).msMaxTouchPoints > 0)
+      
+      // Check user agent as additional hint
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())
+      
+      // Use small screen OR (touch device and mobile UA) OR (touch device on small screens)
+      setIsMobile(isSmallScreen || isMobileUA || (isTouchDevice && width < 1280))
+    }
+
+    // Check immediately
+    checkMobile()
+    
+    // Listen for resize and orientation changes
+    window.addEventListener('resize', checkMobile, { passive: true })
+    window.addEventListener('orientationchange', checkMobile, { passive: true })
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile)
+      window.removeEventListener('orientationchange', checkMobile)
+    }
+  }, [])
+
+  return isMobile
 }
 
 export function DatePicker({
@@ -35,7 +80,7 @@ export function DatePicker({
   minDate,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobileDevice()
   
   // Parse date value - handle both ISO string and yyyy-MM-dd format
   const date = React.useMemo(() => {
@@ -76,8 +121,7 @@ export function DatePicker({
     if (minDate) {
       return format(minDate, 'yyyy-MM-dd');
     }
-    // Default: today
-    return format(new Date(), 'yyyy-MM-dd');
+    return undefined;
   }, [minDate]);
 
   // Handle native input change
@@ -85,6 +129,8 @@ export function DatePicker({
     const inputValue = e.target.value;
     if (inputValue) {
       onChange(inputValue);
+    } else {
+      onChange('');
     }
   }, [onChange]);
 
@@ -121,27 +167,20 @@ export function DatePicker({
       if (minDate) {
         const normalizedMin = normalizeDate(minDate);
         // Disable dates before minDate (allow minDate and after)
-        // Compare dates by converting to time for accurate comparison
         return normalizedCheck.getTime() < normalizedMin.getTime();
       }
       
-      // Default: disable past dates (but allow today and future)
-      const today = normalizeDate(new Date());
-      // Allow today and future dates, disable only past dates
-      // Use getTime() for accurate comparison
-      return normalizedCheck.getTime() < today.getTime();
+      return false;
     } catch (error) {
-      // If there's an error, don't disable (allow selection)
       console.error('Error checking date disabled:', error);
       return false;
     }
   }, [minDate, normalizeDate]);
 
-  // Use native date input on mobile for better UX and reliability
+  // ALWAYS use native date input on mobile/tablet for best UX
   if (isMobile) {
     return (
       <div className="relative w-full">
-        <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
         <input
           id={id}
           type="date"
@@ -151,21 +190,25 @@ export function DatePicker({
           disabled={disabled}
           required={required}
           className={cn(
-            "flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background",
-            "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-            "placeholder:text-muted-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-            "md:text-sm pl-9 pr-3",
-            !nativeInputValue && "text-muted-foreground",
+            // Monday.com inspired styling - clean and modern
+            "flex h-11 w-full rounded-lg border border-gray-300 bg-white",
+            "px-4 py-2.5 text-base font-medium text-gray-900",
+            "focus:outline-none focus:ring-2 focus:ring-[#0073ea]/20 focus:border-[#0073ea]",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50",
+            "transition-all duration-200",
+            // Mobile-specific improvements
+            "touch-manipulation", // Better touch handling
+            "[color-scheme:light]", // Better mobile date picker appearance
+            disabled && "bg-gray-50",
             className
           )}
+          placeholder={placeholder}
         />
       </div>
     );
   }
 
-  // Desktop: Use calendar popover
+  // Desktop: Use Monday.com styled button with calendar popover
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -173,19 +216,24 @@ export function DatePicker({
           id={id}
           variant={"outline"}
           className={cn(
-            "w-full justify-start text-left font-normal h-11",
-            !date && "text-muted-foreground",
+            // Monday.com inspired button styling
+            "w-full justify-start text-left font-medium h-11",
+            "rounded-lg border-gray-300 bg-white hover:bg-gray-50",
+            "text-gray-900 hover:text-gray-900",
+            "focus:outline-none focus:ring-2 focus:ring-[#0073ea] focus:border-[#0073ea]",
+            "transition-all duration-200",
+            !date && "text-gray-400",
             className
           )}
           disabled={disabled}
           type="button"
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>{placeholder}</span>}
+          <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
+          {date ? format(date, "MMM d, yyyy") : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-auto p-0 shadow-lg z-[100]" 
+        className="w-auto p-0 shadow-lg z-[100] rounded-xl border-gray-200" 
         align="start"
         side="bottom"
         sideOffset={4}
