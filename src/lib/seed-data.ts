@@ -9,46 +9,70 @@ const getFutureDate = (daysAhead: number) => new Date(now.getTime() + daysAhead 
 // Comprehensive dummy data for Units
 export const seedUnits: Omit<Unit, 'id'>[] = [
   {
-    name: 'Freightliner Cascadia 125',
-    licensePlate: 'CA-12345',
-    purchaseDate: '2022-01-15T00:00:00Z',
+    make: 'Freightliner',
+    year: 2022,
+    model: 'Cascadia 125',
+    vin: '1FUJGLBG0NHTW1234',
+    plate: 'CA-12345',
+    province: 'CA',
+    country: 'USA',
     staticCost: 1850.00,
-    coveredMiles: 285000,
+    odometerReading: 285000,
   },
   {
-    name: 'Kenworth T680',
-    licensePlate: 'CA-67890',
-    purchaseDate: '2023-03-20T00:00:00Z',
+    make: 'Kenworth',
+    year: 2023,
+    model: 'T680',
+    vin: '1XKDDB0X8NJ123456',
+    plate: 'CA-67890',
+    province: 'CA',
+    country: 'USA',
     staticCost: 1950.00,
-    coveredMiles: 125000,
+    odometerReading: 125000,
   },
   {
-    name: 'Peterbilt 579',
-    licensePlate: 'CA-11111',
-    purchaseDate: '2023-06-10T00:00:00Z',
+    make: 'Peterbilt',
+    year: 2023,
+    model: '579',
+    vin: '1NP5DB0X9NC123456',
+    plate: 'CA-11111',
+    province: 'CA',
+    country: 'USA',
     staticCost: 1920.00,
-    coveredMiles: 95000,
+    odometerReading: 95000,
   },
   {
-    name: 'Volvo VNL 860',
-    licensePlate: 'CA-22222',
-    purchaseDate: '2024-01-05T00:00:00Z',
+    make: 'Volvo',
+    year: 2024,
+    model: 'VNL 860',
+    vin: '4V4NC9EH6NN123456',
+    plate: 'BC-22222',
+    province: 'BC',
+    country: 'Canada',
     staticCost: 1880.00,
-    coveredMiles: 45000,
+    odometerReading: 45000,
   },
   {
-    name: 'International LT Series',
-    licensePlate: 'CA-33333',
-    purchaseDate: '2024-05-12T00:00:00Z',
+    make: 'International',
+    year: 2024,
+    model: 'LT Series',
+    vin: '1HTMMAAM0NX123456',
+    plate: 'ON-33333',
+    province: 'ON',
+    country: 'Canada',
     staticCost: 1750.00,
-    coveredMiles: 25000,
+    odometerReading: 25000,
   },
   {
-    name: 'Mack Anthem',
-    licensePlate: 'CA-44444',
-    purchaseDate: '2024-08-18T00:00:00Z',
+    make: 'Mack',
+    year: 2024,
+    model: 'Anthem',
+    vin: '1M1AX07Y8NM123456',
+    plate: 'AB-44444',
+    province: 'AB',
+    country: 'Canada',
     staticCost: 1800.00,
-    coveredMiles: 12000,
+    odometerReading: 12000,
   },
 ];
 
@@ -56,7 +80,7 @@ export const seedUnits: Omit<Unit, 'id'>[] = [
 export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   {
     name: 'John Michael Smith',
-    email: 'john.smith@truckops.com',
+    email: 'john.smith@trucktrack.com',
     password: 'Driver@123',
     phone: '+1-416-555-0101',
     licenseNumber: 'DL-CA-1234567',
@@ -64,7 +88,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'Jane Elizabeth Doe',
-    email: 'jane.doe@truckops.com',
+    email: 'jane.doe@trucktrack.com',
     password: 'Driver@456',
     phone: '+1-416-555-0102',
     licenseNumber: 'DL-CA-2345678',
@@ -72,7 +96,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'Michael Robert Johnson',
-    email: 'mike.johnson@truckops.com',
+    email: 'mike.johnson@trucktrack.com',
     password: 'Driver@789',
     phone: '+1-647-555-0103',
     licenseNumber: 'DL-ON-3456789',
@@ -80,7 +104,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'Sarah Anne Williams',
-    email: 'sarah.williams@truckops.com',
+    email: 'sarah.williams@trucktrack.com',
     password: 'Driver@321',
     phone: '+1-416-555-0104',
     licenseNumber: 'DL-ON-4567890',
@@ -88,7 +112,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'David Christopher Brown',
-    email: 'david.brown@truckops.com',
+    email: 'david.brown@trucktrack.com',
     password: 'Driver@654',
     phone: '+1-905-555-0105',
     licenseNumber: 'DL-ON-5678901',
@@ -96,7 +120,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'Emily Grace Martinez',
-    email: 'emily.martinez@truckops.com',
+    email: 'emily.martinez@trucktrack.com',
     password: 'Driver@987',
     phone: '+1-416-555-0106',
     licenseNumber: 'DL-ON-6789012',
@@ -104,7 +128,7 @@ export const seedDrivers: Omit<Driver, 'id' | 'createdAt'>[] = [
   },
   {
     name: 'Robert James Taylor',
-    email: 'robert.taylor@truckops.com',
+    email: 'robert.taylor@trucktrack.com',
     password: 'Driver@147',
     phone: '+1-647-555-0107',
     licenseNumber: 'DL-ON-7890123',
@@ -523,12 +547,12 @@ export async function seedDatabase(): Promise<{ success: boolean; message: strin
         const created = await createUnit(unit);
         if (created) {
           results.units.push(created);
-          console.log(`  ✅ Created unit: ${created.name} (${created.id})`);
+          console.log(`  ✅ Created unit: ${created.make} ${created.year} ${created.model} (${created.id})`);
         } else {
-          errors.push(`Failed to create unit: ${unit.name}`);
+          errors.push(`Failed to create unit: ${unit.make} ${unit.year} ${unit.model}`);
         }
       } catch (error: any) {
-        const errorMsg = `Error creating unit ${unit.name}: ${error.message || error}`;
+        const errorMsg = `Error creating unit ${unit.make} ${unit.year} ${unit.model}: ${error.message || error}`;
         errors.push(errorMsg);
         console.error(`  ❌ ${errorMsg}`);
       }

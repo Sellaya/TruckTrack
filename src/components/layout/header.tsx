@@ -35,8 +35,10 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
-      <SidebarTrigger />
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6 w-full">
+      <div className="flex-shrink-0">
+        <SidebarTrigger />
+      </div>
       <div className="w-full flex-1">
         {/* Can add search or breadcrumbs here */}
       </div>

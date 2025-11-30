@@ -224,10 +224,10 @@ export default function UnitDashboardPage() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Truck className="h-8 w-8" />
-              {unit.name}
+              {unit.make} {unit.year} {unit.model}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              License Plate: {unit.licensePlate}
+              VIN: {unit.vin}
             </p>
           </div>
         </div>

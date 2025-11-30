@@ -4,11 +4,15 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Units table
 CREATE TABLE IF NOT EXISTS units (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  license_plate TEXT NOT NULL UNIQUE,
-  purchase_date TIMESTAMPTZ NOT NULL,
+  make TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  vin TEXT NOT NULL,
+  plate TEXT NOT NULL,
+  province TEXT NOT NULL,
+  country TEXT NOT NULL CHECK (country IN ('USA', 'Canada')),
   static_cost DECIMAL(10, 2) NOT NULL,
-  covered_miles INTEGER NOT NULL DEFAULT 0,
+  odometer_reading INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

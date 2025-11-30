@@ -18,11 +18,15 @@ export type Transaction = {
 
 export type Unit = {
   id: string;
-  name: string;
-  licensePlate: string;
-  purchaseDate: string; // ISO string
+  make: string;
+  year: number;
+  model: string;
+  vin: string;
+  plate: string;
+  province: string;
+  country: 'USA' | 'Canada';
   staticCost: number;
-  coveredMiles: number;
+  odometerReading: number;
 };
 
 export type Location = {
@@ -33,15 +37,22 @@ export type Location = {
   longitude?: number;
 };
 
+export type RouteStop = {
+  displayName: string; // e.g., "Los Angeles, CA"
+  location: Location;
+};
+
 export type Trip = {
   id:string;
+  tripNumber: string; // 4-digit trip number (e.g., "0001", "0234")
   name: string;
   startDate: string; // ISO string
   endDate: string; // ISO string
-  origin: string; // Display string (e.g., "Los Angeles, CA")
-  destination: string; // Display string (e.g., "New York, NY")
-  originLocation?: Location; // Detailed location data
-  destinationLocation?: Location; // Detailed location data
+  origin: string; // Display string (e.g., "Los Angeles, CA") - kept for backward compatibility
+  destination: string; // Display string (e.g., "New York, NY") - kept for backward compatibility
+  originLocation?: Location; // Detailed location data - kept for backward compatibility
+  destinationLocation?: Location; // Detailed location data - kept for backward compatibility
+  stops?: RouteStop[]; // Array of route stops for multi-stop trips
   distance: number; // in miles
   cargoDetails?: string;
   notes?: string;

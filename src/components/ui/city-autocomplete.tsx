@@ -30,6 +30,7 @@ export function CityAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<CityLocation | null>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Clear previous debounce
@@ -72,36 +73,73 @@ export function CityAutocomplete({
     setSelectedLocation(city);
     onChange(formatted, city);
     setOpen(false);
+    // Focus back to input after selection
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleInputFocus = () => {
+    // Open popover if there are results
+    if (cities.length > 0) {
+      setOpen(true);
+    }
+  };
+
+  const handleInputMouseDown = (e: React.MouseEvent<HTMLInputElement>) => {
+    // Prevent PopoverTrigger from interfering with input focus
+    e.stopPropagation();
+    
+    // Immediately focus and select the input
+    const input = e.currentTarget;
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  };
+
+  const handleInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    // Prevent PopoverTrigger from handling the click
+    e.stopPropagation();
+    
+    // Focus and select the input
+    const input = e.currentTarget;
+    input.focus();
+    input.select();
+    
+    // Open popover if there are results
+    if (cities.length > 0) {
+      setOpen(true);
+    }
   };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="w-full">
-          {label && (
-            <label className="text-sm font-medium mb-1 block">{label}</label>
-          )}
+      <div className="w-full">
+        {label && (
+          <label className="text-sm font-medium mb-1 block">{label}</label>
+        )}
+        <PopoverTrigger asChild>
           <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
             <Input
+              ref={inputRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
               className="pl-9"
-              onFocus={() => {
-                if (cities.length > 0) {
-                  setOpen(true);
-                }
-              }}
+              onFocus={handleInputFocus}
+              onMouseDown={handleInputMouseDown}
+              onClick={handleInputClick}
             />
             {isLoading && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
-        </div>
-      </PopoverTrigger>
+        </PopoverTrigger>
+      </div>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <ScrollArea className="h-[300px]">
           {isLoading && (

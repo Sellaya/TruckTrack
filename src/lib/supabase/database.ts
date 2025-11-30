@@ -1,5 +1,5 @@
 import { supabase } from './client'
-import type { Trip, Transaction, Unit, Driver, Location } from '../types'
+import type { Trip, Transaction, Unit, Driver, Location, RouteStop } from '../types'
 
 // Helper function to extract all properties from an error object
 function extractErrorInfo(error: any): Record<string, any> {
@@ -30,10 +30,76 @@ function extractErrorInfo(error: any): Record<string, any> {
   return info;
 }
 
+// Helper function to generate unique 4-digit trip number
+async function generateTripNumber(): Promise<string> {
+  if (!supabase) {
+    // Fallback for development/mock data
+    return Math.floor(1000 + Math.random() * 9000).toString()
+  }
+
+  // Get the highest trip number
+  const { data, error } = await supabase
+    .from('trips')
+    .select('trip_number')
+    .order('trip_number', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error || !data || !data.trip_number) {
+    // No trips exist yet, start at 0001
+    return '0001'
+  }
+
+  // Parse the highest trip number and increment
+  const currentNumber = parseInt(data.trip_number, 10)
+  if (isNaN(currentNumber)) {
+    return '0001'
+  }
+
+  // Increment and format as 4-digit string
+  const nextNumber = currentNumber + 1
+  
+  // If we exceed 9999, wrap around to 0001
+  // (Optional: you might want to handle this differently)
+  if (nextNumber > 9999) {
+    // Check for gaps in numbering (unlikely but possible)
+    const { data: gapData } = await supabase
+      .from('trips')
+      .select('trip_number')
+      .order('trip_number', { ascending: true })
+      .limit(1000)
+    
+    if (gapData) {
+      // Find first gap
+      for (let i = 1; i <= 9999; i++) {
+        const numStr = i.toString().padStart(4, '0')
+        if (!gapData.some(t => t.trip_number === numStr)) {
+          return numStr
+        }
+      }
+    }
+    // If no gaps found and we exceed 9999, start over
+    return '0001'
+  }
+
+  return nextNumber.toString().padStart(4, '0')
+}
+
 // Helper to convert database row to Trip
 function rowToTrip(row: any): Trip {
+  // Parse stops from JSONB if available
+  let stops: RouteStop[] | undefined = undefined;
+  if (row.stops) {
+    try {
+      stops = typeof row.stops === 'string' ? JSON.parse(row.stops) : row.stops;
+    } catch (e) {
+      console.error('Error parsing stops:', e);
+    }
+  }
+  
   return {
     id: row.id,
+    tripNumber: row.trip_number || '',
     name: row.name,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -41,6 +107,7 @@ function rowToTrip(row: any): Trip {
     destination: row.destination,
     originLocation: row.origin_location as Location | undefined,
     destinationLocation: row.destination_location as Location | undefined,
+    stops: stops,
     distance: parseFloat(row.distance),
     cargoDetails: row.cargo_details || undefined,
     notes: row.notes || undefined,
@@ -73,11 +140,15 @@ function rowToTransaction(row: any): Transaction {
 function rowToUnit(row: any): Unit {
   return {
     id: row.id,
-    name: row.name,
-    licensePlate: row.license_plate,
-    purchaseDate: row.purchase_date,
+    make: row.make,
+    year: row.year,
+    model: row.model,
+    vin: row.vin,
+    plate: row.plate || '',
+    province: row.province || '',
+    country: (row.country as 'USA' | 'Canada') || 'USA',
     staticCost: parseFloat(row.static_cost),
-    coveredMiles: row.covered_miles,
+    odometerReading: row.odometer_reading,
   }
 }
 
@@ -122,8 +193,16 @@ export async function createUnit(unit: Omit<Unit, 'id'>): Promise<Unit | null> {
   }
 
   // Validate required fields
-  if (!unit.name || !unit.licensePlate || !unit.purchaseDate) {
-    throw new Error('Missing required fields: name, licensePlate, and purchaseDate are required.')
+  if (!unit.make || !unit.model || !unit.vin || !unit.plate || !unit.province || !unit.country) {
+    throw new Error('Missing required fields: make, model, VIN, plate, province, and country are required.')
+  }
+  
+  if (unit.country !== 'USA' && unit.country !== 'Canada') {
+    throw new Error('Country must be either USA or Canada.')
+  }
+
+  if (!unit.year || unit.year < 1900 || unit.year > 2100) {
+    throw new Error('Year must be a valid number between 1900 and 2100.')
   }
 
   // Validate data types
@@ -131,34 +210,46 @@ export async function createUnit(unit: Omit<Unit, 'id'>): Promise<Unit | null> {
     throw new Error('Static cost must be a valid positive number.')
   }
 
-  if (isNaN(unit.coveredMiles) || unit.coveredMiles < 0) {
-    throw new Error('Covered miles must be a valid positive number.')
+  if (isNaN(unit.odometerReading) || unit.odometerReading < 0) {
+    throw new Error('Odometer reading must be a valid positive number.')
   }
 
   try {
     // Log initial unit data received
     console.log('createUnit called with:', {
-      name: unit.name,
-      licensePlate: unit.licensePlate,
-      purchaseDate: unit.purchaseDate,
+      make: unit.make,
+      year: unit.year,
+      model: unit.model,
+      vin: unit.vin,
+      plate: unit.plate,
+      province: unit.province,
+      country: unit.country,
       staticCost: unit.staticCost,
-      coveredMiles: unit.coveredMiles,
+      odometerReading: unit.odometerReading,
     });
 
     const insertData = {
-      name: unit.name.trim(),
-      license_plate: unit.licensePlate.trim(),
-      purchase_date: unit.purchaseDate,
+      make: unit.make.trim(),
+      year: parseInt(unit.year.toString(), 10),
+      model: unit.model.trim(),
+      vin: unit.vin.trim().toUpperCase(),
+      plate: unit.plate.trim().toUpperCase(),
+      province: unit.province.trim(),
+      country: unit.country,
       static_cost: parseFloat(unit.staticCost.toString()),
-      covered_miles: parseInt(unit.coveredMiles.toString(), 10),
+      odometer_reading: parseInt(unit.odometerReading.toString(), 10),
     };
 
     console.log('Insert data prepared:', {
-      name: insertData.name,
-      license_plate: insertData.license_plate,
-      purchase_date: insertData.purchase_date,
+      make: insertData.make,
+      year: insertData.year,
+      model: insertData.model,
+      vin: insertData.vin,
+      plate: insertData.plate,
+      province: insertData.province,
+      country: insertData.country,
       static_cost: insertData.static_cost,
-      covered_miles: insertData.covered_miles,
+      odometer_reading: insertData.odometer_reading,
     });
 
     console.log('Supabase client available:', !!supabase);
@@ -189,7 +280,7 @@ export async function createUnit(unit: Omit<Unit, 'id'>): Promise<Unit | null> {
       if (error.status) errorParts.push(`Status: ${error.status}`);
       
       // Add insert data info
-      errorParts.push(`Attempted to insert: name="${insertData.name}", license_plate="${insertData.license_plate}"`);
+      errorParts.push(`Attempted to insert: make="${insertData.make}", vin="${insertData.vin}"`);
       
       const fullErrorDetails = errorParts.join(' | ');
       console.error('Error creating unit:', fullErrorDetails);
@@ -205,9 +296,10 @@ export async function createUnit(unit: Omit<Unit, 'id'>): Promise<Unit | null> {
       const errorMessage = (error.message || '').toLowerCase();
       const errorStatus = (error as any).status || (error as any).statusCode || 0;
       
-      if (errorCode === '23505' || errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
-        throw new Error(`A unit with license plate "${unit.licensePlate}" already exists. Please use a different license plate.`);
-      } else if (errorCode === 'PGRST204' || errorCode === 'PGRST116' || errorStatus === 409) {
+      // Allow duplicate VINs - removed unique constraint error handling
+      // Admins can now add multiple units with the same VIN if needed
+      
+      if (errorCode === 'PGRST204' || errorCode === 'PGRST116' || errorStatus === 409) {
         throw new Error('Failed to create unit. The data may conflict with existing records or the request was rejected.');
       } else if (errorCode === '42501' || errorStatus === 403) {
         throw new Error('Permission denied. Please check your database permissions or Row Level Security policies.');
@@ -240,11 +332,15 @@ export async function updateUnit(id: string, unit: Partial<Omit<Unit, 'id'>>): P
   }
 
   const updateData: any = {}
-  if (unit.name) updateData.name = unit.name
-  if (unit.licensePlate) updateData.license_plate = unit.licensePlate
-  if (unit.purchaseDate) updateData.purchase_date = unit.purchaseDate
+  if (unit.make) updateData.make = unit.make
+  if (unit.year !== undefined) updateData.year = unit.year
+  if (unit.model) updateData.model = unit.model
+  if (unit.vin) updateData.vin = unit.vin
+  if (unit.plate) updateData.plate = unit.plate
+  if (unit.province) updateData.province = unit.province
+  if (unit.country) updateData.country = unit.country
   if (unit.staticCost !== undefined) updateData.static_cost = unit.staticCost
-  if (unit.coveredMiles !== undefined) updateData.covered_miles = unit.coveredMiles
+  if (unit.odometerReading !== undefined) updateData.odometer_reading = unit.odometerReading
 
   const { data, error } = await supabase
     .from('units')
@@ -301,7 +397,7 @@ export async function getTripsByDriver(driverId: string): Promise<Trip[]> {
   return data.map(rowToTrip)
 }
 
-export async function createTrip(trip: Omit<Trip, 'id'>): Promise<Trip | null> {
+export async function createTrip(trip: Omit<Trip, 'id' | 'tripNumber'>): Promise<Trip | null> {
   if (!supabase) {
     console.warn('Supabase not configured')
     throw new Error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file and restart the dev server.')
@@ -312,7 +408,11 @@ export async function createTrip(trip: Omit<Trip, 'id'>): Promise<Trip | null> {
     throw new Error('Missing required fields: name, startDate, endDate, origin, and destination are required')
   }
 
+  // Generate unique trip number
+  const tripNumber = await generateTripNumber()
+
   const insertData: any = {
+    trip_number: tripNumber,
     name: trip.name,
     start_date: trip.startDate,
     end_date: trip.endDate,
@@ -320,6 +420,7 @@ export async function createTrip(trip: Omit<Trip, 'id'>): Promise<Trip | null> {
     destination: trip.destination,
     origin_location: trip.originLocation || null,
     destination_location: trip.destinationLocation || null,
+    stops: trip.stops && trip.stops.length > 0 ? trip.stops : null,
     distance: trip.distance || 0,
     cargo_details: trip.cargoDetails || null,
     notes: trip.notes || null,
@@ -415,6 +516,7 @@ export async function updateTrip(id: string, trip: Partial<Omit<Trip, 'id'>>): P
   if (trip.destination) updateData.destination = trip.destination
   if (trip.originLocation !== undefined) updateData.origin_location = trip.originLocation
   if (trip.destinationLocation !== undefined) updateData.destination_location = trip.destinationLocation
+  if (trip.stops !== undefined) updateData.stops = trip.stops && trip.stops.length > 0 ? trip.stops : null
   if (trip.distance !== undefined) updateData.distance = trip.distance
   if (trip.cargoDetails !== undefined) updateData.cargo_details = trip.cargoDetails
   if (trip.notes !== undefined) updateData.notes = trip.notes
@@ -769,6 +871,25 @@ export async function deleteTrip(id: string): Promise<boolean> {
 
   if (error) {
     console.error('Error deleting trip:', error)
+    return false
+  }
+
+  return true
+}
+
+export async function deleteUnit(id: string): Promise<boolean> {
+  if (!supabase) {
+    console.warn('Supabase not configured')
+    return false
+  }
+
+  const { error } = await supabase
+    .from('units')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error deleting unit:', error)
     return false
   }
 

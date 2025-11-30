@@ -1544,9 +1544,9 @@ export default function DriverDashboardViewPage() {
 
       {/* Add Expense Dialog */}
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-xl sm:text-2xl">
+            <DialogTitle>
               {editingExpense ? 'Edit Expense' : 'Add Expense'}
             </DialogTitle>
             <DialogDescription>
@@ -1555,7 +1555,8 @@ export default function DriverDashboardViewPage() {
                 : 'Add a new expense for this driver. All fields marked with * are required.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="grid gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label htmlFor="description" className="sm:text-right">Description *</Label>
               <Input
@@ -1627,7 +1628,7 @@ export default function DriverDashboardViewPage() {
                 <SelectContent>
                   {units.map((unit) => (
                     <SelectItem key={unit.id} value={unit.id}>
-                      {unit.name} ({unit.licensePlate})
+                      {unit.make} {unit.year} {unit.model} ({unit.vin})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1704,11 +1705,12 @@ export default function DriverDashboardViewPage() {
               </div>
             </div>
           </div>
+          </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSaveExpense}>
+            <Button onClick={handleSaveExpense} className="bg-[#0073ea] hover:bg-[#0058c2]">
               {editingExpense ? 'Update Expense' : 'Add Expense'}
             </Button>
           </DialogFooter>

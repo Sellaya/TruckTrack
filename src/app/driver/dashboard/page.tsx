@@ -664,33 +664,49 @@ function DriverDashboardContent() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Driver Dashboard</h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-1">Welcome back, {currentDriver.name}</p>
+    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+      {/* Header Section - Monday.com Style */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-gray-900">Driver Dashboard</h1>
+            {currentDriver && (
+              <span className="text-sm text-gray-500">Welcome, {currentDriver.name}</span>
+            )}
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
             <Button 
-              variant="outline" 
+              variant="ghost" 
+              size="sm"
               onClick={() => router.push('/driver/profile')}
-              className="flex-1 sm:flex-initial"
+              className="h-9 px-4 rounded-md hidden sm:flex"
             >
               <User className="mr-2 h-4 w-4" />
-              My Profile
+              Profile
             </Button>
             <Button 
-              variant="outline" 
+              variant="ghost" 
+              size="icon"
+              onClick={() => router.push('/driver/profile')}
+              className="h-9 w-9 sm:hidden"
+            >
+              <User className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
               onClick={handleLogout}
-              className="flex-1 sm:flex-initial"
+              className="h-9 px-4 rounded-md"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-6">
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1590,7 +1606,7 @@ function DriverDashboardContent() {
 
         {/* Add Expense Dialog */}
         <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
-          <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingExpense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
               <DialogDescription>
@@ -1599,7 +1615,8 @@ function DriverDashboardContent() {
                   : 'Add a new expense for this trip. All fields marked with * are required.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
                 <Label htmlFor="description" className="sm:text-right">Description *</Label>
                 <Input
@@ -1650,7 +1667,7 @@ function DriverDashboardContent() {
                     <SelectContent>
                       {units.map((unit) => (
                         <SelectItem key={unit.id} value={unit.id}>
-                          {unit.name} ({unit.licensePlate})
+                          {unit.make} {unit.year} {unit.model} ({unit.vin})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1795,11 +1812,12 @@ function DriverDashboardContent() {
                 </div>
               </div>
             </div>
+            </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button variant="outline" disabled={isUploading}>Cancel</Button>
               </DialogClose>
-              <Button onClick={handleAddExpense} disabled={isUploading}>
+              <Button onClick={handleAddExpense} disabled={isUploading} className="bg-[#0073ea] hover:bg-[#0058c2]">
                 {isUploading ? 'Uploading...' : editingExpense ? 'Update Expense' : 'Add Expense'}
               </Button>
             </DialogFooter>

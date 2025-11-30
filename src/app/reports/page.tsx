@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet, Calendar, Filter, ArrowUpDown } from "lucide-react";
+import { Download, FileSpreadsheet, Calendar, Filter, User, Truck, MapPin, Route, TrendingUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getTransactions, getTrips, getDrivers, getUnits } from '@/lib/data';
 import type { Trip, Transaction, Driver, Unit } from '@/lib/types';
@@ -24,6 +23,7 @@ import {
 } from '@/lib/currency';
 import { format } from 'date-fns';
 import { DistanceDisplay } from '@/components/ui/distance-display';
+import { RouteDisplay } from '@/components/ui/route-display';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,6 +34,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -126,7 +133,7 @@ export default function ReportsPage() {
   const getUnitName = (unitId?: string) => {
     if (!unitId) return 'N/A';
     const unit = units.find(u => u.id === unitId);
-    return unit?.name || 'Unknown';
+    return unit ? `${unit.make} ${unit.year} ${unit.model}` : 'Unknown';
   };
 
   const getTripExpenses = (tripId: string) => {
@@ -161,6 +168,22 @@ export default function ReportsPage() {
     if (now < start) return 'upcoming';
     if (now > end) return 'completed';
     return 'ongoing';
+  };
+
+  const getStatusBadge = (trip: Trip) => {
+    const status = getTripStatus(trip);
+    const statusConfig = {
+      completed: { label: 'Completed', className: 'bg-green-100 text-green-700 border-green-200' },
+      ongoing: { label: 'In Progress', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+      upcoming: { label: 'Upcoming', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+    };
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.upcoming;
+    
+    return (
+      <Badge className={`rounded-full px-2.5 py-0.5 text-xs font-medium border ${config.className}`}>
+        {config.label}
+      </Badge>
+    );
   };
 
   // Export trips to CSV
@@ -218,7 +241,7 @@ export default function ReportsPage() {
         trip.distance.toString(),
         (trip.distance * 1.60934).toFixed(2),
         getUnitName(trip.unitId),
-        unit?.licensePlate || '',
+        unit?.plate || '',
         getDriverName(trip.driverId),
         driver?.email || '',
         formatCurrency(totalPrimary, primaryCurrency).replace(/[^\d.-]/g, ''),
@@ -328,287 +351,407 @@ export default function ReportsPage() {
     setDriverFilter('all');
   };
 
+  const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || driverFilter !== 'all';
+  const totalDistance = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
+  const totalExpenses = filteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0);
+  const totalExpenseRecords = filteredTrips.reduce((sum, trip) => sum + getTripExpenses(trip.id).length, 0);
+
   return (
-    <div className="flex flex-col gap-6 w-full">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
+    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+      {/* Header Section - Monday.com Style */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <FileSpreadsheet className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
+            {filteredTrips.length > 0 && (
+              <span className="text-sm text-gray-500">({filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'})</span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground ml-[52px]">
-            Export detailed trip reports for accounting and analysis
-          </p>
+          <Button 
+            onClick={handleExportTrips} 
+            disabled={isLoading || filteredTrips.length === 0}
+            className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Report
+          </Button>
         </div>
-        <Button 
-          onClick={handleExportTrips} 
-          className="w-full sm:w-auto"
-          disabled={isLoading || filteredTrips.length === 0}
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Export Trips Report
-        </Button>
       </div>
 
-      {/* Filters Card */}
-      <Card>
-        <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-          <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
-            <Filter className="h-4 w-4 text-primary flex-shrink-0" />
-            <span>Filter & Export Options</span>
-          </CardTitle>
-          <CardDescription className="text-xs sm:text-sm mt-1">
-            Filter trips by date range, status, or driver before exporting
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-4 sm:px-6">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-            {/* Date Range Filters */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center gap-2 sm:gap-3 pb-2.5 sm:pb-3 border-b border-border/50">
-                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                </div>
-                <Label className="text-sm sm:text-base font-semibold text-foreground">Date Range</Label>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Start Date */}
-                <div className="p-3 sm:p-4 rounded-xl border-2 bg-gradient-to-br from-blue-50/50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 border-blue-200/50 dark:border-blue-800/30 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm hover:shadow-md">
-                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2 sm:mb-3">
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <Label htmlFor="startDate" className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
-                      Start Date
-                    </Label>
-                  </div>
-                  <DatePicker
-                    id="startDate"
-                    value={startDate}
-                    onChange={setStartDate}
-                    placeholder="Select start date"
-                    minDate={new Date(1900, 0, 1)}
-                    className="w-full"
-                  />
-                </div>
-                
-                {/* End Date */}
-                <div className="p-3 sm:p-4 rounded-xl border-2 bg-gradient-to-br from-green-50/50 to-green-100/30 dark:from-green-950/20 dark:to-green-900/10 border-green-200/50 dark:border-green-800/30 hover:border-green-300 dark:hover:border-green-700 transition-all shadow-sm hover:shadow-md">
-                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2 sm:mb-3">
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-green-500/15 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <Label htmlFor="endDate" className="text-xs sm:text-sm font-semibold text-green-700 dark:text-green-400">
-                      End Date
-                    </Label>
-                  </div>
-                  <DatePicker
-                    id="endDate"
-                    value={endDate}
-                    onChange={setEndDate}
-                    placeholder="Select end date"
-                    minDate={startDate ? new Date(startDate) : new Date(1900, 0, 1)}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+      {/* Main Content */}
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-6">
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-96" />
             </div>
-            
-            {/* Status & Driver Filter Options */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center gap-2 sm:gap-3 pb-2.5 sm:pb-3 border-b border-border/50">
-                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <ArrowUpDown className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-32" />
                 </div>
-                <Label className="text-sm sm:text-base font-semibold text-foreground">Filter Options</Label>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Status Filter */}
-                <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                  <Label htmlFor="statusFilter" className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
-                    <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <span className="whitespace-nowrap">Status</span>
-                  </Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger id="statusFilter" className="h-10 sm:h-11 text-sm w-full min-w-0">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="upcoming">Upcoming</SelectItem>
-                      <SelectItem value="ongoing">Ongoing</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Driver Filter */}
-                <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                  <Label htmlFor="driverFilter" className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
-                    <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <span className="whitespace-nowrap">Driver</span>
-                  </Label>
-                  <Select value={driverFilter} onValueChange={setDriverFilter}>
-                    <SelectTrigger id="driverFilter" className="h-10 sm:h-11 text-sm w-full min-w-0">
-                      <SelectValue placeholder="All Drivers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Drivers</SelectItem>
-                      {drivers.filter(d => d.isActive).map(driver => (
-                        <SelectItem key={driver.id} value={driver.id}>
-                          {driver.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-          
-          {/* Clear Filters Button & Results Count */}
-          {(startDate || endDate || statusFilter !== 'all' || driverFilter !== 'all') && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pt-3 sm:pt-4 mt-3 sm:mt-4 border-t">
-              <Badge variant="secondary" className="w-full sm:w-auto justify-center sm:justify-start">
-                {filteredTrips.length} trip{filteredTrips.length !== 1 ? 's' : ''} match your filters
-              </Badge>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleClearFilters}
-                className="h-9 sm:h-10 gap-2 w-full sm:w-auto text-sm"
-              >
-                <Filter className="h-3.5 w-3.5" />
-                <span>Clear All Filters</span>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Summary Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Report Summary</CardTitle>
-          <CardDescription>
-            Preview of filtered trips that will be included in the export
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-12">
-              <p className="text-lg text-muted-foreground">Loading report data...</p>
-            </div>
-          ) : filteredTrips.length > 0 ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total Trips</p>
-                  <p className="text-2xl font-bold">{filteredTrips.length}</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total Distance</p>
-                  <div className="flex flex-col gap-1">
-                    <DistanceDisplay 
-                      distance={filteredTrips.reduce((sum, trip) => sum + trip.distance, 0)}
-                      variant="default"
-                      showLabel={false}
-                      className="text-2xl"
-                    />
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total Expenses</p>
-                  <p className="text-2xl font-bold text-destructive">
-                    {formatCurrency(
-                      filteredTrips.reduce((sum, trip) => sum + getTripTotalExpenses(trip.id), 0),
-                      getPrimaryCurrency()
+        ) : (
+          <>
+            {/* Filters Section */}
+            {/* Mobile: Accordion */}
+            <div className="lg:hidden mb-6">
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="filters" className="border border-gray-200 rounded-lg">
+                  <AccordionTrigger className="px-4 hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-gray-600" />
+                      <span className="font-medium">Filters</span>
+                      {hasActiveFilters && (
+                        <Badge className="rounded-full px-2 py-0.5 text-xs bg-blue-100 text-blue-700">
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Start Date</Label>
+                        <DatePicker
+                          id="startDate"
+                          value={startDate}
+                          onChange={setStartDate}
+                          placeholder="Select start date"
+                          minDate={new Date(1900, 0, 1)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">End Date</Label>
+                        <DatePicker
+                          id="endDate"
+                          value={endDate}
+                          onChange={setEndDate}
+                          placeholder="Select end date"
+                          minDate={startDate ? new Date(startDate) : new Date(1900, 0, 1)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Status</Label>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="All Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="upcoming">Upcoming</SelectItem>
+                            <SelectItem value="ongoing">Ongoing</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Driver</Label>
+                        <Select value={driverFilter} onValueChange={setDriverFilter}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="All Drivers" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Drivers</SelectItem>
+                            {drivers.filter(d => d.isActive).map(driver => (
+                              <SelectItem key={driver.id} value={driver.id}>
+                                {driver.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {hasActiveFilters && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleClearFilters}
+                        className="w-full"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Clear Filters
+                      </Button>
                     )}
-                  </p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total Expenses (Records)</p>
-                  <p className="text-2xl font-bold">
-                    {filteredTrips.reduce((sum, trip) => sum + getTripExpenses(trip.id).length, 0)}
-                  </p>
-                </div>
-              </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
 
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold">Trip Name</TableHead>
-                      <TableHead className="font-semibold">Route</TableHead>
-                      <TableHead className="font-semibold">Dates</TableHead>
-                      <TableHead className="font-semibold">Driver</TableHead>
-                      <TableHead className="font-semibold">Unit</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="text-right font-semibold">Expenses</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTrips.slice(0, 10).map(trip => (
-                      <TableRow key={trip.id}>
-                        <TableCell className="font-medium">{trip.name}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div>{trip.origin}</div>
-                            <div className="text-muted-foreground">→ {trip.destination}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div>{format(new Date(trip.startDate), 'MMM d, yyyy')}</div>
-                            <div className="text-muted-foreground">to {format(new Date(trip.endDate), 'MMM d, yyyy')}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getDriverName(trip.driverId)}</TableCell>
-                        <TableCell>{getUnitName(trip.unitId)}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            getTripStatus(trip) === 'completed' ? 'secondary' :
-                            getTripStatus(trip) === 'ongoing' ? 'default' : 'outline'
-                          }>
-                            {getTripStatus(trip)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(
-                            getTripTotalExpenses(trip.id),
-                            getPrimaryCurrency()
-                          )}
-                          <div className="text-xs text-muted-foreground">
-                            ({getTripExpenses(trip.id).length} expense{getTripExpenses(trip.id).length !== 1 ? 's' : ''})
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {filteredTrips.length > 10 && (
-                <p className="text-sm text-muted-foreground text-center">
-                  Showing first 10 trips. All {filteredTrips.length} trips will be included in the export.
-                </p>
+            {/* Desktop: Inline Filters */}
+            <div className="hidden lg:flex lg:items-center lg:gap-3 lg:flex-wrap lg:mb-6">
+              <DatePicker
+                id="startDate"
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                minDate={new Date(1900, 0, 1)}
+                className="w-36 h-9 flex-shrink-0"
+              />
+              <span className="text-gray-400 flex-shrink-0">-</span>
+              <DatePicker
+                id="endDate"
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                minDate={startDate ? new Date(startDate) : new Date(1900, 0, 1)}
+                className="w-36 h-9 flex-shrink-0"
+              />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 w-36 bg-white border-gray-300 flex-shrink-0">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={driverFilter} onValueChange={setDriverFilter}>
+                <SelectTrigger className="h-9 min-w-[160px] bg-white border-gray-300 flex-shrink-0">
+                  <SelectValue placeholder="All Drivers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Drivers</SelectItem>
+                  {drivers.filter(d => d.isActive).map(driver => (
+                    <SelectItem key={driver.id} value={driver.id}>
+                      {driver.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearFilters}
+                  className="h-9 text-sm"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear
+                </Button>
               )}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-lg text-muted-foreground">
-                {trips.length === 0 
-                  ? 'No trips found. Add trips to generate reports.'
-                  : 'No trips match your current filters. Try adjusting your filter criteria.'}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Summary Metrics - Monday.com Style */}
+            {filteredTrips.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Route className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <p className="text-sm text-gray-600 font-medium">Total Trips</p>
+                  </div>
+                  <p className="text-2xl font-semibold text-gray-900">{filteredTrips.length}</p>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
+                      <MapPin className="h-4 w-4 text-green-600" />
+                    </div>
+                    <p className="text-sm text-gray-600 font-medium">Total Distance</p>
+                  </div>
+                  <DistanceDisplay 
+                    distance={totalDistance}
+                    variant="default"
+                    showLabel={false}
+                    className="text-xl font-semibold"
+                  />
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <TrendingUp className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <p className="text-sm text-gray-600 font-medium">Total Expenses</p>
+                  </div>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {formatCurrency(totalExpenses, getPrimaryCurrency())}
+                  </p>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <FileSpreadsheet className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <p className="text-sm text-gray-600 font-medium">Expense Records</p>
+                  </div>
+                  <p className="text-2xl font-semibold text-gray-900">{totalExpenseRecords}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Trips Section */}
+            {filteredTrips.length === 0 ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg font-medium text-gray-900 mb-1">
+                  {trips.length === 0 
+                    ? 'No trips found' 
+                    : 'No trips match your filters'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {trips.length === 0 
+                    ? 'Add trips to generate reports.'
+                    : 'Try adjusting your filter criteria.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Desktop: Table View */}
+                <div className="hidden lg:block w-full overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <div className="overflow-hidden bg-white border border-gray-200 rounded-lg shadow-sm">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50 border-b border-gray-200 hover:bg-gray-50">
+                            <TableHead className="font-semibold text-gray-900 py-3">Trip Name</TableHead>
+                            <TableHead className="font-semibold text-gray-900 py-3">Route</TableHead>
+                            <TableHead className="font-semibold text-gray-900 py-3">Dates</TableHead>
+                            <TableHead className="font-semibold text-gray-900 py-3">Driver</TableHead>
+                            <TableHead className="font-semibold text-gray-900 py-3">Unit</TableHead>
+                            <TableHead className="font-semibold text-gray-900 py-3">Status</TableHead>
+                            <TableHead className="text-right font-semibold text-gray-900 py-3">Expenses</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTrips.slice(0, 10).map(trip => (
+                            <TableRow key={trip.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                              <TableCell className="font-medium text-gray-900 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-gray-500">#{trip.tripNumber || 'N/A'}</span>
+                                  <span>{trip.name}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <RouteDisplay
+                                  stops={trip.stops || []}
+                                  origin={trip.origin}
+                                  destination={trip.destination}
+                                  originLocation={trip.originLocation}
+                                  destinationLocation={trip.destinationLocation}
+                                  variant="compact"
+                                  maxStops={3}
+                                  className="text-sm text-gray-700"
+                                />
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600 py-3">
+                                <div>{format(new Date(trip.startDate), 'MMM d, yyyy')}</div>
+                                <div className="text-xs text-gray-500">to {format(new Date(trip.endDate), 'MMM d, yyyy')}</div>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600 py-3">{getDriverName(trip.driverId)}</TableCell>
+                              <TableCell className="text-sm text-gray-600 py-3">{getUnitName(trip.unitId)}</TableCell>
+                              <TableCell className="py-3">
+                                {getStatusBadge(trip)}
+                              </TableCell>
+                              <TableCell className="text-right py-3">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {formatCurrency(getTripTotalExpenses(trip.id), getPrimaryCurrency())}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  ({getTripExpenses(trip.id).length} record{getTripExpenses(trip.id).length !== 1 ? 's' : ''})
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile: Card View */}
+                <div className="lg:hidden space-y-3">
+                  {filteredTrips.slice(0, 10).map(trip => (
+                    <div key={trip.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="space-y-3">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-gray-500 font-medium">#{trip.tripNumber || 'N/A'}</span>
+                              <h3 className="font-semibold text-base text-gray-900 truncate">{trip.name}</h3>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {getStatusBadge(trip)}
+                              <span className="text-xs text-gray-500">
+                                {format(new Date(trip.startDate), 'MMM d')} - {format(new Date(trip.endDate), 'MMM d, yyyy')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Route */}
+                        <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
+                          <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <RouteDisplay
+                              stops={trip.stops || []}
+                              origin={trip.origin}
+                              destination={trip.destination}
+                              originLocation={trip.originLocation}
+                              destinationLocation={trip.destinationLocation}
+                              variant="compact"
+                              maxStops={4}
+                              className="text-xs text-gray-700"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Details */}
+                        <div className="flex items-center gap-4 pt-2 border-t border-gray-100 text-sm">
+                          <div className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-gray-400" />
+                            <span className="text-gray-600 truncate max-w-[100px]">{getDriverName(trip.driverId)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Truck className="h-3.5 w-3.5 text-gray-400" />
+                            <span className="text-gray-600 truncate max-w-[100px]">{getUnitName(trip.unitId)}</span>
+                          </div>
+                        </div>
+
+                        {/* Expenses */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div>
+                            <p className="text-xs text-gray-500">Total Expenses</p>
+                            <p className="text-lg font-semibold text-gray-900">
+                              {formatCurrency(getTripTotalExpenses(trip.id), getPrimaryCurrency())}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Records</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {getTripExpenses(trip.id).length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer Note */}
+                {filteredTrips.length > 10 && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-gray-600">
+                      Showing first 10 trips. All <span className="font-medium">{filteredTrips.length}</span> trips will be included in the export.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

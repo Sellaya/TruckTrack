@@ -46,7 +46,7 @@ const mockDrivers: Driver[] = [
   {
     id: 'driver-1',
     name: 'John Smith',
-    email: 'john.smith@truckops.com',
+    email: 'john.smith@trucktrack.com',
     password: 'password123',
     phone: '+1-555-0101',
     licenseNumber: 'DL-123456',
@@ -56,7 +56,7 @@ const mockDrivers: Driver[] = [
   {
     id: 'driver-2',
     name: 'Jane Doe',
-    email: 'jane.doe@truckops.com',
+    email: 'jane.doe@trucktrack.com',
     password: 'password123',
     phone: '+1-555-0102',
     licenseNumber: 'DL-123457',
@@ -66,7 +66,7 @@ const mockDrivers: Driver[] = [
   {
     id: 'driver-3',
     name: 'Mike Johnson',
-    email: 'mike.johnson@truckops.com',
+    email: 'mike.johnson@trucktrack.com',
     password: 'password123',
     phone: '+1-555-0103',
     licenseNumber: 'DL-123458',
@@ -76,7 +76,7 @@ const mockDrivers: Driver[] = [
   {
     id: 'driver-4',
     name: 'Sarah Williams',
-    email: 'sarah.williams@truckops.com',
+    email: 'sarah.williams@trucktrack.com',
     password: 'password123',
     phone: '+1-555-0104',
     licenseNumber: 'DL-123459',
@@ -89,6 +89,7 @@ const mockTrips: Trip[] = [
   // Completed trips for driver-1
   {
     id: 'trip-1',
+    tripNumber: '0001',
     name: 'Los Angeles to New York',
     startDate: getDate(45),
     endDate: getDate(40),
@@ -105,6 +106,7 @@ const mockTrips: Trip[] = [
   },
   {
     id: 'trip-2',
+    tripNumber: '0002',
     name: 'Chicago to Miami',
     startDate: getDate(30),
     endDate: getDate(25),
@@ -120,6 +122,7 @@ const mockTrips: Trip[] = [
   },
   {
     id: 'trip-3',
+    tripNumber: '0003',
     name: 'Toronto to Montreal',
     startDate: getDate(15),
     endDate: getDate(12),
@@ -136,6 +139,7 @@ const mockTrips: Trip[] = [
   // Ongoing trip for driver-1
   {
     id: 'trip-4',
+    tripNumber: '0004',
     name: 'Vancouver to Seattle',
     startDate: getDate(2),
     endDate: getFutureDate(2),
@@ -153,6 +157,7 @@ const mockTrips: Trip[] = [
   // Upcoming trips for driver-1
   {
     id: 'trip-5',
+    tripNumber: '0005',
     name: 'Dallas to Houston',
     startDate: getFutureDate(5),
     endDate: getFutureDate(7),
@@ -168,6 +173,7 @@ const mockTrips: Trip[] = [
   },
   {
     id: 'trip-6',
+    tripNumber: '0006',
     name: 'Phoenix to Las Vegas',
     startDate: getFutureDate(12),
     endDate: getFutureDate(14),
@@ -184,6 +190,7 @@ const mockTrips: Trip[] = [
   // Trips for driver-2
   {
     id: 'trip-7',
+    tripNumber: '0007',
     name: 'Boston to Philadelphia',
     startDate: getDate(20),
     endDate: getDate(17),
@@ -199,6 +206,7 @@ const mockTrips: Trip[] = [
   },
   {
     id: 'trip-8',
+    tripNumber: '0008',
     name: 'Denver to Salt Lake City',
     startDate: getFutureDate(8),
     endDate: getFutureDate(10),
@@ -352,6 +360,7 @@ export async function getTransactionsByDriver(driverId: string): Promise<Transac
 export {
   createUnit,
   updateUnit,
+  deleteUnit,
   createTrip,
   updateTrip,
   deleteTrip,

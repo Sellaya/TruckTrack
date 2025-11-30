@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -13,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Settings as SettingsIcon, DollarSign, Info } from 'lucide-react';
 import { 
   getPrimaryCurrency, 
   setPrimaryCurrency, 
@@ -23,6 +21,8 @@ import {
   refreshExchangeRates,
   type Currency 
 } from '@/lib/currency';
+import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -32,6 +32,12 @@ export default function SettingsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Ensure component is mounted before rendering date-dependent content
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const loadRates = async () => {
     try {
@@ -90,99 +96,158 @@ export default function SettingsPage() {
     });
   };
 
-  if (isLoading) {
-    return <div>Loading settings...</div>;
-  }
-
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configure your currency preferences</p>
+    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+      {/* Header Section - Monday.com Style */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Currency Settings</CardTitle>
-          <CardDescription>
-            Set your primary currency for reporting. All transactions will be converted to this currency for summaries and reports.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
-              <Label htmlFor="primaryCurrency" className="sm:text-right">Primary Currency</Label>
-              <Select
-                value={primaryCurrency}
-                onValueChange={(value) => setPrimaryCurrencyState(value as Currency)}
-              >
-                <SelectTrigger className="sm:col-span-3" id="primaryCurrency">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CAD">CAD (Canadian Dollar)</SelectItem>
-                  <SelectItem value="USD">USD (US Dollar)</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Main Content */}
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-6">
+        {isLoading ? (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <Skeleton className="h-6 w-48 mb-4" />
+              <Skeleton className="h-4 w-64 mb-6" />
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
-              <Label className="sm:text-right">Exchange Rates</Label>
-              <div className="sm:col-span-3 space-y-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium mb-1">USD to CAD</div>
-                    <div className="text-lg font-semibold">{usdToCadRate}</div>
-                    <p className="text-xs text-muted-foreground">1 USD = {usdToCadRate} CAD</p>
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Currency Settings Card */}
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <DollarSign className="h-5 w-5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium mb-1">CAD to USD</div>
-                    <div className="text-lg font-semibold">{cadToUsdRate}</div>
-                    <p className="text-xs text-muted-foreground">1 CAD = {cadToUsdRate} USD</p>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Currency Settings</h2>
+                    <p className="text-sm text-gray-600 mt-0.5">
+                      Set your primary currency for reporting and summaries
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefreshRates}
-                    disabled={isRefreshing}
+              </div>
+              <div className="px-4 sm:px-6 py-6 space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="primaryCurrency" className="text-sm font-medium text-gray-900">
+                    Primary Currency *
+                  </Label>
+                  <Select
+                    value={primaryCurrency}
+                    onValueChange={(value) => setPrimaryCurrencyState(value as Currency)}
                   >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh Rates'}
-                  </Button>
-                  {lastUpdated && (
-                    <p className="text-xs text-muted-foreground">
-                      Last updated: {lastUpdated.toLocaleTimeString()}
+                    <SelectTrigger className="w-full sm:max-w-xs" id="primaryCurrency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CAD">CAD (Canadian Dollar)</SelectItem>
+                      <SelectItem value="USD">USD (US Dollar)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    All transactions will be converted to this currency for summaries and reports.
+                  </p>
+                </div>
+
+                {/* Exchange Rates Section */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Exchange Rates</h3>
+                      <p className="text-xs text-gray-600">
+                        Rates are automatically fetched from Frankfurter.dev API and cached for 1 hour.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshRates}
+                      disabled={isRefreshing}
+                      className="h-9 px-4 rounded-md"
+                    >
+                      <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-6 w-6 rounded bg-blue-100 flex items-center justify-center">
+                          <DollarSign className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-600">USD to CAD</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 mb-1">
+                        {usdToCadRate}
+                      </div>
+                      <p className="text-xs text-gray-500">1 USD = {usdToCadRate} CAD</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-6 w-6 rounded bg-green-100 flex items-center justify-center">
+                          <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-600">CAD to USD</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 mb-1">
+                        {cadToUsdRate}
+                      </div>
+                      <p className="text-xs text-gray-500">1 CAD = {cadToUsdRate} USD</p>
+                    </div>
+                  </div>
+
+                  {lastUpdated && isMounted && (
+                    <p className="text-xs text-gray-500 mt-3">
+                      Last updated: {format(lastUpdated, 'MMM d, yyyy h:mm a')}
                     </p>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Rates are automatically fetched from Frankfurter.dev API and cached for 1 hour.
-                </p>
-              </div>
-            </div>
 
-            <div className="pt-4 border-t">
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-sm font-medium mb-2">How it works:</p>
-                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>All transactions can be entered in either USD or CAD</li>
-                  <li>The original currency is always preserved</li>
-                  <li>Reports and summaries show both currencies</li>
-                  <li>All trip and expense numbers are converted to primary currency for consistency in reports</li>
-                </ul>
-              </div>
-            </div>
+                {/* Info Section */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900 mb-2">How it works:</p>
+                        <ul className="text-sm text-blue-800 space-y-1.5 list-disc list-inside">
+                          <li>All transactions can be entered in either USD or CAD</li>
+                          <li>The original currency is always preserved</li>
+                          <li>Reports and summaries show both currencies</li>
+                          <li>All trip and expense numbers are converted to primary currency for consistency in reports</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-            <div className="flex justify-end pt-4">
-              <Button onClick={handleSaveSettings}>Save Settings</Button>
+                {/* Save Button */}
+                <div className="flex justify-end pt-4 border-t border-gray-200">
+                  <Button 
+                    onClick={handleSaveSettings}
+                    className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-10 px-6 rounded-md font-medium"
+                  >
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }
-

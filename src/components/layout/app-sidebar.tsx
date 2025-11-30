@@ -34,29 +34,33 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { isMobile, setOpen, open } = useSidebar();
 
-  // Ensure sidebar stays open on desktop for admin routes
-  // This runs whenever pathname changes or component mounts
+  // Initialize sidebar state on mount for admin routes (only once, not on every pathname change)
+  // This ensures the sidebar has a default open state but allows user to toggle it
   useEffect(() => {
     if (!isMobile && pathname && !pathname.startsWith('/driver')) {
-      // Force sidebar to stay open on desktop for admin routes
-      // Set cookie to true immediately to override any false value
+      // Only set initial state if sidebar state hasn't been set by user interaction
+      // Check if cookie exists - if not, set default to open
       if (typeof document !== 'undefined') {
-        document.cookie = 'sidebar_state=true; path=/; max-age=604800'; // 7 days
+        const cookieValue = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('sidebar_state='))
+          ?.split('=')[1];
+        
+        // Only set default open if no cookie exists (first visit)
+        if (cookieValue === undefined) {
+          setOpen(true);
+        }
+        // If cookie exists, respect user's preference (don't force it)
       }
-      // Force sidebar to open (this will also update the cookie)
-      setOpen(true);
     }
-  }, [pathname, isMobile, setOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount, not on pathname changes
 
-  // Handle navigation - ensure desktop sidebar stays open
+  // Handle navigation - don't force sidebar state, let user control it
   const handleNavigation = () => {
-    // Desktop sidebar: ensure it stays open (state managed by cookies)
-    // The sidebar should remain open when navigating between pages
-    if (!isMobile) {
-      // Ensure desktop sidebar is open - don't let it close on navigation
-      setOpen(true);
-    }
-    // Mobile sidebar: standard behavior (can close on navigation, user can reopen)
+    // Mobile sidebar: can close on navigation (standard behavior)
+    // Desktop sidebar: maintain current state (user controls via toggle button)
+    // Don't force sidebar open/closed - respect user's preference
   };
 
   return (

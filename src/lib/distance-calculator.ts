@@ -58,6 +58,32 @@ export function formatDistance(miles: number): { miles: string; kilometers: stri
   };
 }
 
+/**
+ * Calculate total distance for a route with multiple stops
+ * @param stops Array of route stops with location coordinates
+ * @returns Total distance in miles
+ */
+export function calculateMultiStopDistance(stops: Array<{ location: { latitude?: number; longitude?: number } }>): number {
+  if (!stops || stops.length < 2) return 0;
+  
+  let totalMiles = 0;
+  
+  for (let i = 0; i < stops.length - 1; i++) {
+    const current = stops[i].location;
+    const next = stops[i + 1].location;
+    
+    if (current.latitude && current.longitude && next.latitude && next.longitude) {
+      const segmentMiles = calculateDistanceMiles(
+        { latitude: current.latitude, longitude: current.longitude },
+        { latitude: next.latitude, longitude: next.longitude }
+      );
+      totalMiles += segmentMiles;
+    }
+  }
+  
+  return Math.round(totalMiles * 100) / 100; // Round to 2 decimal places
+}
+
 
 
 

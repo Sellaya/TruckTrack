@@ -11,7 +11,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
   // Hide sidebar and header for driver routes and landing page
-  const isDriverRoute = pathname?.startsWith('/driver');
+  // Check for /driver/ (with trailing slash) to match /driver/* routes, but NOT /drivers (plural)
+  const isDriverRoute = pathname?.startsWith('/driver/');
   const isLandingPage = pathname === '/';
   const isAdminLoginPage = pathname === '/admin/login';
   
@@ -24,9 +25,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar collapsible="offcanvas">
         <AppSidebar />
       </Sidebar>
-      <SidebarInset className="flex flex-col min-h-screen">
+      <SidebarInset className="flex flex-col min-h-screen overflow-x-hidden">
         <Header />
-        <main className="flex-1 w-full p-4 sm:p-6">{children}</main>
+        <main className="flex-1 w-full max-w-full overflow-x-hidden p-4 sm:p-6">{children}</main>
         <Footer />
       </SidebarInset>
     </>

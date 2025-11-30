@@ -108,7 +108,7 @@ export default function DriverLoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="driver@truckops.com"
+                    placeholder="driver@trucktrack.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value.trim())}
                     required

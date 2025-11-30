@@ -95,17 +95,11 @@ const SidebarProvider = React.forwardRef<
         const isAdminRoute = currentPath && !currentPath.startsWith('/driver')
         
         if (cookieValue !== null) {
-          // Cookie exists - but for admin routes, force sidebar open
-          // This ensures sidebar stays open on admin pages even if cookie says false
-          if (isAdminRoute) {
-            _setOpen(true)
-            document.cookie = `${SIDEBAR_COOKIE_NAME}=true; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
-          } else {
-            // For driver routes, use cookie value
-            _setOpen(cookieValue)
-          }
+          // Cookie exists - respect user's preference regardless of route type
+          _setOpen(cookieValue)
         } else {
-          // No cookie exists, set it to current state
+          // No cookie exists, set it to default value
+          // For admin routes, default to open; for driver routes, use defaultOpen prop
           const initialValue = isAdminRoute ? true : defaultOpen
           _setOpen(initialValue)
           document.cookie = `${SIDEBAR_COOKIE_NAME}=${initialValue}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
@@ -132,9 +126,12 @@ const SidebarProvider = React.forwardRef<
 
     // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
-      return isMobile
-        ? setOpenMobile((open) => !open)
-        : setOpen((open) => !open)
+      if (isMobile) {
+        setOpenMobile((open) => !open);
+      } else {
+        // Desktop: toggle the sidebar state
+        setOpen((open) => !open);
+      }
     }, [isMobile, setOpen, setOpenMobile])
 
     // Adds a keyboard shortcut to toggle the sidebar.
@@ -182,7 +179,7 @@ const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
+              "group/sidebar-wrapper flex min-h-svh w-full overflow-x-hidden has-[[data-variant=inset]]:bg-sidebar",
               className
             )}
             ref={ref}
@@ -238,7 +235,7 @@ const Sidebar = React.forwardRef<
           {/* Fixed sidebar */}
           <div
             className={cn(
-              "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] md:flex",
+              "fixed inset-y-0 z-50 hidden h-svh w-[--sidebar-width] md:flex",
               side === "left" ? "left-0" : "right-0",
               variant === "floating" || variant === "inset"
                 ? "p-2"
@@ -334,7 +331,18 @@ const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, isMobile, open, openMobile } = useSidebar()
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // Stop event propagation to avoid conflicts with parent elements
+    event.stopPropagation();
+    
+    // Call custom onClick if provided
+    onClick?.(event);
+    
+    // Toggle sidebar - works on both mobile and desktop
+    toggleSidebar();
+  }
 
   return (
     <Button
@@ -342,14 +350,19 @@ const SidebarTrigger = React.forwardRef<
       data-sidebar="trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-7 w-7", className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
+      type="button"
+      className={cn(
+        "h-7 w-7 relative z-50 flex-shrink-0 flex items-center justify-center",
+        "hover:bg-accent hover:text-accent-foreground",
+        "transition-colors duration-200",
+        className
+      )}
+      onClick={handleClick}
+      aria-label={isMobile ? "Open navigation menu" : "Toggle sidebar"}
+      aria-expanded={isMobile ? openMobile : open}
       {...props}
     >
-      <PanelLeft />
+      <PanelLeft className="h-4 w-4 flex-shrink-0" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
@@ -393,7 +406,7 @@ const SidebarInset = React.forwardRef<
     <main
       ref={ref}
       className={cn(
-        "relative flex min-h-svh flex-1 flex-col bg-background",
+        "relative flex min-h-svh flex-1 flex-col bg-background overflow-x-hidden",
         "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
         className
       )}

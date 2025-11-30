@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MapPin, Calendar, Route, Package, FileText, Truck, User, Edit, ChevronDown, ChevronRight, Receipt, ExternalLink, Filter, ArrowUpDown, ArrowUp, ArrowDown, Clock, Trash2 } from "lucide-react";
+import { PlusCircle, MapPin, Calendar, Route, Package, FileText, Truck, User, Edit, ChevronDown, ChevronRight, Receipt, ExternalLink, Filter, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
   DialogClose,
@@ -37,14 +38,20 @@ import {
 } from '@/components/ui/table';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { getTrips, getUnits, getDrivers, createTrip, updateTrip, deleteTrip, getTransactions } from '@/lib/data';
-import type { Trip, Unit, Location, Driver } from '@/lib/types';
+import type { Trip, Unit, Location, Driver, Currency, RouteStop } from '@/lib/types';
 import { CityAutocomplete } from '@/components/ui/city-autocomplete';
-import type { CityLocation } from '@/lib/address-autocomplete';
-import { calculateDistanceMiles } from '@/lib/distance-calculator';
+import { calculateDistanceMiles, calculateMultiStopDistance } from '@/lib/distance-calculator';
+import { MultiStopRouteInput } from '@/components/ui/multi-stop-route-input';
+import { RouteDisplay } from '@/components/ui/route-display';
 import { DistanceDisplay } from '@/components/ui/distance-display';
-import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
-import { useEffect } from 'react';
+import { GrandTotalDisplay } from '@/components/ui/currency-display';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,7 +64,7 @@ import {
   formatCurrency
 } from '@/lib/currency';
 
-function TripsPageContent() {
+function TripsPageContent(): React.JSX.Element {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -65,6 +72,7 @@ function TripsPageContent() {
   const [destination, setDestination] = useState('');
   const [originLocation, setOriginLocation] = useState<Location | undefined>(undefined);
   const [destinationLocation, setDestinationLocation] = useState<Location | undefined>(undefined);
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [distance, setDistance] = useState('');
@@ -88,6 +96,7 @@ function TripsPageContent() {
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tripNumberSearch, setTripNumberSearch] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'status' | 'distance'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -178,10 +187,17 @@ function TripsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-calculate distance when both locations are selected
+  // Auto-calculate distance when route stops are selected
   useEffect(() => {
-    if (originLocation?.latitude && originLocation?.longitude && 
+    // Use route stops if available, otherwise fall back to origin/destination
+    if (routeStops.length >= 2 && routeStops.every(s => s.location.latitude && s.location.longitude)) {
+      const miles = calculateMultiStopDistance(routeStops);
+      const kilometers = miles * 1.60934;
+      setCalculatedDistance({ miles, kilometers });
+      setDistance(miles.toString());
+    } else if (originLocation?.latitude && originLocation?.longitude && 
         destinationLocation?.latitude && destinationLocation?.longitude) {
+      // Fallback to origin/destination for backward compatibility
       const miles = calculateDistanceMiles(
         { latitude: originLocation.latitude, longitude: originLocation.longitude },
         { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude }
@@ -192,7 +208,7 @@ function TripsPageContent() {
     } else {
       setCalculatedDistance(null);
     }
-  }, [originLocation, destinationLocation]);
+  }, [routeStops, originLocation, destinationLocation]);
 
   const resetForm = () => {
     setName('');
@@ -200,6 +216,7 @@ function TripsPageContent() {
     setDestination('');
     setOriginLocation(undefined);
     setDestinationLocation(undefined);
+    setRouteStops([]);
     setStartDate('');
     setEndDate('');
     setDistance('');
@@ -216,12 +233,11 @@ function TripsPageContent() {
     try {
       if (!trip || !trip.startDate || !trip.endDate) {
         return (
-          <Badge 
-            variant="outline" 
-            className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit"
+          <span 
+            className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-gray-700 bg-gray-100"
           >
             Unknown
-          </Badge>
+          </span>
         );
       }
       const now = new Date();
@@ -230,53 +246,49 @@ function TripsPageContent() {
       
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         return (
-          <Badge 
-            variant="outline" 
-            className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit"
+          <span 
+            className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-gray-700 bg-gray-100"
           >
             Invalid Date
-          </Badge>
+          </span>
         );
       }
       
       if (now < start) {
         return (
-          <Badge 
-            variant="outline" 
-            className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit"
+          <span 
+            className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-white bg-[#0073ea] shadow-sm"
           >
             Upcoming
-          </Badge>
+          </span>
         );
       }
       
       if (now > end) {
         return (
-          <Badge 
-            variant="secondary" 
-            className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit"
+          <span 
+            className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-white bg-[#00c875] shadow-sm"
           >
             Completed
-          </Badge>
+          </span>
         );
       }
       
       return (
-        <Badge 
-          className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit whitespace-nowrap"
+        <span 
+          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-white bg-[#ff642e] shadow-sm whitespace-nowrap"
         >
           In Progress
-        </Badge>
+        </span>
       );
     } catch (error) {
       console.error('Error getting trip status:', error);
       return (
-        <Badge 
-          variant="outline" 
-          className="text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6 flex items-center justify-center min-w-fit"
+        <span 
+          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-xs font-medium text-gray-700 bg-gray-100"
         >
           Error
-        </Badge>
+        </span>
       );
     }
   }
@@ -284,7 +296,8 @@ function TripsPageContent() {
   const getUnitName = (unitId?: string) => {
     try {
       if (!unitId || !Array.isArray(units)) return 'N/A';
-      return units.find(u => u && u.id === unitId)?.name || 'Unknown';
+      const unit = units.find(u => u && u.id === unitId);
+      return unit ? `${unit.make} ${unit.year} ${unit.model}` : 'Unknown';
     } catch (error) {
       console.error('Error getting unit name:', error);
       return 'N/A';
@@ -352,6 +365,15 @@ function TripsPageContent() {
   // Filter and sort trips
   const filteredAndSortedTrips = useMemo(() => {
     let filtered = [...trips];
+
+    // Apply trip number search filter
+    if (tripNumberSearch.trim()) {
+      const searchTerm = tripNumberSearch.trim().toLowerCase();
+      filtered = filtered.filter(trip => {
+        const tripNum = trip.tripNumber || '';
+        return tripNum.toLowerCase().includes(searchTerm);
+      });
+    }
 
     // Apply date range filter
     if (filterStartDate) {
@@ -438,7 +460,7 @@ function TripsPageContent() {
     });
 
     return filtered;
-  }, [trips, filterStartDate, filterEndDate, statusFilter, sortBy, sortOrder]);
+  }, [trips, filterStartDate, filterEndDate, statusFilter, tripNumberSearch, sortBy, sortOrder]);
 
   const handleDeleteTrip = (trip: Trip) => {
     setTripToDelete(trip);
@@ -496,6 +518,23 @@ function TripsPageContent() {
       setDestination(trip.destination || '');
       setOriginLocation(trip.originLocation);
       setDestinationLocation(trip.destinationLocation);
+      // Load route stops if available, otherwise build from origin/destination
+      if (trip.stops && trip.stops.length > 0) {
+        setRouteStops(trip.stops);
+      } else if (trip.originLocation && trip.destinationLocation) {
+        setRouteStops([
+          {
+            displayName: trip.origin || '',
+            location: trip.originLocation,
+          },
+          {
+            displayName: trip.destination || '',
+            location: trip.destinationLocation,
+          },
+        ]);
+      } else {
+        setRouteStops([]);
+      }
       
       try {
         if (trip.startDate) {
@@ -543,6 +582,17 @@ function TripsPageContent() {
   }
 
   const handleSaveTrip = async () => {
+    // Validate route stops
+    const validStops = routeStops.filter(s => s.displayName && s.location.city);
+    if (validStops.length < 2) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least 2 route stops (origin and destination).",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Validate dates
     if (!startDate || !endDate) {
       toast({
@@ -634,12 +684,17 @@ function TripsPageContent() {
     try {
       if (editingTrip) {
         // Update existing trip
+        const validStops = routeStops.filter(s => s.displayName && s.location.city);
+        const firstStop = validStops[0];
+        const lastStop = validStops[validStops.length - 1];
+        
         const updatedTrip = await updateTrip(editingTrip.id, {
           name,
-          origin,
-          destination,
-          originLocation,
-          destinationLocation,
+          origin: firstStop?.displayName || origin,
+          destination: lastStop?.displayName || destination,
+          originLocation: firstStop?.location || originLocation,
+          destinationLocation: lastStop?.location || destinationLocation,
+          stops: validStops.length > 2 ? validStops : undefined,
           startDate: start.toISOString(),
           endDate: end.toISOString(),
           distance: parseInt(distance, 10),
@@ -668,13 +723,18 @@ function TripsPageContent() {
           });
         }
       } else {
-        // Create new trip
-        const newTripData: Omit<Trip, 'id'> = {
+        // Create new trip (tripNumber will be auto-generated)
+        const validStops = routeStops.filter(s => s.displayName && s.location.city);
+        const firstStop = validStops[0];
+        const lastStop = validStops[validStops.length - 1];
+        
+        const newTripData: Omit<Trip, 'id' | 'tripNumber'> = {
           name,
-          origin,
-          destination,
-          originLocation,
-          destinationLocation,
+          origin: firstStop?.displayName || origin,
+          destination: lastStop?.displayName || destination,
+          originLocation: firstStop?.location || originLocation,
+          destinationLocation: lastStop?.location || destinationLocation,
+          stops: validStops.length > 2 ? validStops : undefined, // Only include if more than 2 stops
           startDate: start.toISOString(),
           endDate: end.toISOString(),
           distance: parseInt(distance, 10),
@@ -716,46 +776,45 @@ function TripsPageContent() {
     }
   }
 
-
   return (
-    <div className="flex flex-col gap-6 w-full max-w-full">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
+    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+      {/* Header Section - Monday.com Style */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Route className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Trips</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Trips</h1>
+            {trips.length > 0 && (
+              <span className="text-sm text-gray-500">({filteredAndSortedTrips.length} {filteredAndSortedTrips.length === 1 ? 'trip' : 'trips'})</span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground sm:ml-[52px]">
-            Manage and track your trucking trips
-          </p>
-        </div>
-        <Dialog open={open} onOpenChange={(isOpen) => {
-          setOpen(isOpen);
-          if (!isOpen) {
-            resetForm();
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
+          <Dialog open={open} onOpenChange={(isOpen) => {
+            setOpen(isOpen);
+            if (!isOpen) {
               resetForm();
-              setOpen(true);
-            }} className="w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Log New Trip
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-            <DialogHeader className="pb-4 border-b">
-              <DialogTitle className="text-2xl">{editingTrip ? 'Edit Trip' : 'Log a New Trip'}</DialogTitle>
-              <CardDescription className="text-base mt-2">
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={() => {
+                  resetForm();
+                  setOpen(true);
+                }} 
+                className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New Trip
+              </Button>
+            </DialogTrigger>
+          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>{editingTrip ? 'Edit Trip' : 'Log a New Trip'}</DialogTitle>
+              <DialogDescription>
                 Fill in the details below to log a new trip. Distance will be auto-calculated when you select origin and destination cities.
-              </CardDescription>
+              </DialogDescription>
             </DialogHeader>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 py-6">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left Column - Trip Details */}
               <div className="space-y-6">
                 {/* Trip Name Section */}
@@ -774,56 +833,32 @@ function TripsPageContent() {
                   />
                 </div>
 
-                {/* Route Section */}
-                <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-semibold">Route Information</Label>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <CityAutocomplete
-                        value={origin}
-                        onChange={(value, location) => {
-                          setOrigin(value);
-                          if (location) {
-                            setOriginLocation({
-                              city: location.name,
-                              state: location.state,
-                              country: location.country,
-                              latitude: location.latitude,
-                              longitude: location.longitude,
-                            });
-                          } else {
-                            setOriginLocation(undefined);
-                          }
-                        }}
-                        placeholder="Search origin city..."
-                        label="Origin City *"
-                      />
+                {/* Route Section - Multi-Stop */}
+                <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-semibold">Route Stops</Label>
                     </div>
-                    <div>
-                      <CityAutocomplete
-                        value={destination}
-                        onChange={(value, location) => {
-                          setDestination(value);
-                          if (location) {
-                            setDestinationLocation({
-                              city: location.name,
-                              state: location.state,
-                              country: location.country,
-                              latitude: location.latitude,
-                              longitude: location.longitude,
-                            });
-                          } else {
-                            setDestinationLocation(undefined);
-                          }
-                        }}
-                        placeholder="Search destination city..."
-                        label="Destination City *"
-                      />
-                    </div>
+                    <span className="text-xs text-muted-foreground">{routeStops.filter(s => s.displayName).length} stops</span>
                   </div>
+                  <MultiStopRouteInput
+                    stops={routeStops}
+                    onChange={(stops) => {
+                      setRouteStops(stops);
+                      // Update origin/destination for backward compatibility
+                      if (stops.length > 0) {
+                        setOrigin(stops[0].displayName);
+                        setOriginLocation(stops[0].location);
+                      }
+                      if (stops.length > 1) {
+                        setDestination(stops[stops.length - 1].displayName);
+                        setDestinationLocation(stops[stops.length - 1].location);
+                      }
+                    }}
+                    minStops={2}
+                    maxStops={20}
+                  />
                 </div>
 
                 {/* Distance Section */}
@@ -959,7 +994,7 @@ function TripsPageContent() {
                             <div className="px-2 py-1.5 text-sm text-muted-foreground">No units available. Add units first.</div>
                           ) : (
                             units.map(unit => (
-                              <SelectItem key={unit.id} value={unit.id}>{unit.name} ({unit.licensePlate})</SelectItem>
+                              <SelectItem key={unit.id} value={unit.id}>{unit.make} {unit.year} {unit.model} ({unit.vin})</SelectItem>
                             ))
                           )}
                         </SelectContent>
@@ -1022,12 +1057,13 @@ function TripsPageContent() {
                 </div>
               </div>
             </div>
+            </div>
 
-            <DialogFooter className="pt-4 border-t gap-3">
+            <DialogFooter>
               <DialogClose asChild>
-                <Button variant="outline" className="h-11 px-6">Cancel</Button>
+                <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button onClick={handleSaveTrip} className="h-11 px-6">
+              <Button onClick={handleSaveTrip} className="bg-[#0073ea] hover:bg-[#0058c2]">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 {editingTrip ? 'Save Changes' : 'Add Trip'}
               </Button>
@@ -1036,93 +1072,75 @@ function TripsPageContent() {
         </Dialog>
       </div>
 
-      {/* Trips List Card */}
-      <Card className="w-full">
-            <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-              <div className="flex flex-col gap-3 sm:gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base sm:text-lg lg:text-xl">Your Trips</CardTitle>
-                    <CardDescription className="mt-1 text-xs sm:text-sm">
-                      A list of all your logged trips. {trips.length > 0 && `(${filteredAndSortedTrips.length} of ${trips.length} shown)`}
-                    </CardDescription>
-                  </div>
+      {/* Filters Section - Monday.com Style */}
+      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        {/* Mobile: Accordion */}
+        <div className="lg:hidden">
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="filters" className="border-0 bg-white rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-600" />
+                  <span className="font-medium text-gray-900">Filters</span>
+                  {(filterStartDate || filterEndDate || statusFilter !== 'all' || tripNumberSearch.trim()) && (
+                    <span className="ml-2 h-5 px-2 rounded-full bg-[#0073ea] text-white text-xs font-medium flex items-center">
+                      Active
+                    </span>
+                  )}
                 </div>
-                
-                {/* Filter and Sort Controls */}
-                <div className="pt-3 sm:pt-4 border-t">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-                {/* Date Range Filters */}
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-center gap-2 sm:gap-3 pb-2 sm:pb-3 border-b">
-                    <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              </AccordionTrigger>
+              <AccordionContent className="pb-4">
+                <div className="space-y-4 pt-2">
+                  {/* Trip Number Search */}
+                  <div className="space-y-2">
+                    <Label htmlFor="tripNumberSearchMobile" className="text-xs font-medium text-gray-700">Search Trip Number</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="tripNumberSearchMobile"
+                        type="text"
+                        value={tripNumberSearch}
+                        onChange={(e) => setTripNumberSearch(e.target.value)}
+                        placeholder="e.g., 0001, 0234"
+                        className="h-9 pl-10 bg-white border-gray-300 rounded-md focus:ring-2 focus:ring-[#0073ea] focus:border-[#0073ea]"
+                        maxLength={4}
+                      />
                     </div>
-                    <Label className="text-sm sm:text-base font-semibold text-foreground">Date Range</Label>
                   </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {/* Start Date */}
-                    <div className="p-3 sm:p-4 rounded-xl border-2 bg-gradient-to-br from-blue-50/50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 border-blue-200/50 dark:border-blue-800/30 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm hover:shadow-md">
-                      <div className="flex items-center gap-2 sm:gap-2.5 mb-2 sm:mb-3">
-                        <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                          <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <Label htmlFor="filterStartDate" className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
-                          Start Date
-                        </Label>
-                      </div>
+
+                  {/* Date Range */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="filterStartDateMobile" className="text-xs font-medium text-gray-700">Start Date</Label>
                       <DatePicker
-                        id="filterStartDate"
+                        id="filterStartDateMobile"
                         value={filterStartDate}
                         onChange={setFilterStartDate}
-                        placeholder="Select start date"
+                        placeholder="Start date"
                         minDate={new Date(1900, 0, 1)}
                         className="w-full"
                       />
                     </div>
-                    
-                    {/* End Date */}
-                    <div className="p-3 sm:p-4 rounded-xl border-2 bg-gradient-to-br from-green-50/50 to-green-100/30 dark:from-green-950/20 dark:to-green-900/10 border-green-200/50 dark:border-green-800/30 hover:border-green-300 dark:hover:border-green-700 transition-all shadow-sm hover:shadow-md">
-                      <div className="flex items-center gap-2 sm:gap-2.5 mb-2 sm:mb-3">
-                        <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-green-500/15 flex items-center justify-center flex-shrink-0">
-                          <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 dark:text-green-400" />
-                        </div>
-                        <Label htmlFor="filterEndDate" className="text-xs sm:text-sm font-semibold text-green-700 dark:text-green-400">
-                          End Date
-                        </Label>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="filterEndDateMobile" className="text-xs font-medium text-gray-700">End Date</Label>
                       <DatePicker
-                        id="filterEndDate"
+                        id="filterEndDateMobile"
                         value={filterEndDate}
                         onChange={setFilterEndDate}
-                        placeholder="Select end date"
+                        placeholder="End date"
                         minDate={filterStartDate ? new Date(filterStartDate) : new Date(1900, 0, 1)}
                         className="w-full"
                       />
                     </div>
                   </div>
-                </div>
-                
-                {/* Status Filter & Sort Options */}
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-center gap-2 sm:gap-3 pb-2.5 sm:pb-3 border-b border-border/50">
-                    <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <ArrowUpDown className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    </div>
-                    <Label className="text-sm sm:text-base font-semibold text-foreground">Filter & Sort</Label>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {/* Status Filter */}
-                    <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                      <Label htmlFor="statusFilter" className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
-                        <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="whitespace-nowrap">Status</span>
-                      </Label>
+
+                  {/* Status & Sort */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="statusFilterMobile" className="text-xs font-medium text-gray-700">Status</Label>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger id="statusFilter" className="h-10 sm:h-11 text-sm w-full min-w-0">
-                          <SelectValue placeholder="All Status" />
+                        <SelectTrigger id="statusFilterMobile" className="h-9 bg-white border-gray-300">
+                          <SelectValue placeholder="All" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Status</SelectItem>
@@ -1132,15 +1150,11 @@ function TripsPageContent() {
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    {/* Sort By */}
-                    <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                      <Label htmlFor="sortBy" className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
-                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="whitespace-nowrap">Sort By</span>
-                      </Label>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="sortByMobile" className="text-xs font-medium text-gray-700">Sort By</Label>
                       <Select value={sortBy} onValueChange={(value: 'date' | 'name' | 'status' | 'distance') => setSortBy(value)}>
-                        <SelectTrigger id="sortBy" className="h-10 sm:h-11 text-sm w-full min-w-0">
+                        <SelectTrigger id="sortByMobile" className="h-9 bg-white border-gray-300">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1151,84 +1165,159 @@ function TripsPageContent() {
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    {/* Sort Order */}
-                    <div className="space-y-2 sm:space-y-2.5 min-w-0 sm:col-span-2 lg:col-span-1">
-                      <Label htmlFor="sortOrder" className="text-xs sm:text-sm font-semibold text-foreground mb-1.5 block">
-                        Order
-                      </Label>
-                      <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
-                        <SelectTrigger id="sortOrder" className="h-10 sm:h-11 text-sm w-full min-w-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="desc">
-                            <div className="flex items-center gap-2">
-                              <ArrowDown className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="hidden sm:inline">Descending</span>
-                              <span className="sm:hidden">Desc</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="asc">
-                            <div className="flex items-center gap-2">
-                              <ArrowUp className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="hidden sm:inline">Ascending</span>
-                              <span className="sm:hidden">Asc</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
-                </div>
-              </div>
-              
-              {/* Clear Filters Button */}
-              {(filterStartDate || filterEndDate || statusFilter !== 'all') && (
-                <div className="flex justify-end sm:justify-end pt-3 sm:pt-4 mt-3 sm:mt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setFilterStartDate('');
-                      setFilterEndDate('');
-                      setStatusFilter('all');
-                    }}
-                    className="h-9 sm:h-10 gap-2 w-full sm:w-auto text-sm"
-                  >
-                    <Filter className="h-3.5 w-3.5" />
-                    <span>Clear All Filters</span>
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-4 sm:p-6 space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-5 w-20" />
-                  </div>
+
+                  {/* Sort Order */}
                   <div className="space-y-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
+                    <Label htmlFor="sortOrderMobile" className="text-xs font-medium text-gray-700">Order</Label>
+                    <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+                      <SelectTrigger id="sortOrderMobile" className="h-9 bg-white border-gray-300">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="desc">Descending</SelectItem>
+                        <SelectItem value="asc">Ascending</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex gap-4">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-24" />
-                  </div>
+
+                  {/* Clear Filters */}
+                  {(filterStartDate || filterEndDate || statusFilter !== 'all' || tripNumberSearch.trim()) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilterStartDate('');
+                        setFilterEndDate('');
+                        setStatusFilter('all');
+                        setTripNumberSearch('');
+                      }}
+                      className="w-full h-9 gap-2 text-sm border-gray-300 hover:bg-gray-50"
+                    >
+                      Clear All Filters
+                    </Button>
+                  )}
                 </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        {/* Desktop: Inline Filters */}
+        <div className="hidden lg:flex lg:items-center lg:gap-3 lg:flex-wrap">
+          {/* Trip Number Search */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              id="tripNumberSearch"
+              type="text"
+              value={tripNumberSearch}
+              onChange={(e) => setTripNumberSearch(e.target.value)}
+              placeholder="Search by trip number..."
+              className="h-9 pl-10 bg-white border-gray-300 rounded-md focus:ring-2 focus:ring-[#0073ea] focus:border-[#0073ea]"
+              maxLength={4}
+            />
+          </div>
+
+          {/* Date Range */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <DatePicker
+              id="filterStartDate"
+              value={filterStartDate}
+              onChange={setFilterStartDate}
+              placeholder="Start date"
+              minDate={new Date(1900, 0, 1)}
+              className="w-36 h-9"
+            />
+            <span className="text-gray-400 flex-shrink-0">-</span>
+            <DatePicker
+              id="filterEndDate"
+              value={filterEndDate}
+              onChange={setFilterEndDate}
+              placeholder="End date"
+              minDate={filterStartDate ? new Date(filterStartDate) : new Date(1900, 0, 1)}
+              className="w-36 h-9"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9 w-36 bg-white border-gray-300 flex-shrink-0">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+              <SelectItem value="ongoing">Ongoing</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Sort By */}
+          <Select value={sortBy} onValueChange={(value: 'date' | 'name' | 'status' | 'distance') => setSortBy(value)}>
+            <SelectTrigger className="h-9 w-32 bg-white border-gray-300 flex-shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+              <SelectItem value="distance">Distance</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Sort Order */}
+          <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+            <SelectTrigger className="h-9 w-28 bg-white border-gray-300 flex-shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">
+                <div className="flex items-center gap-2">
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span>Desc</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="asc">
+                <div className="flex items-center gap-2">
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  <span>Asc</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Clear Filters */}
+          {(filterStartDate || filterEndDate || statusFilter !== 'all' || tripNumberSearch.trim()) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilterStartDate('');
+                setFilterEndDate('');
+                setStatusFilter('all');
+                setTripNumberSearch('');
+              }}
+              className="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Trips Table/Cards Section - Monday.com Style */}
+      <div className="flex-1 bg-white w-full overflow-x-hidden">
+          {isLoading ? (
+            <div className="px-6 py-8 space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-16 bg-gray-50 rounded-lg animate-pulse" />
               ))}
             </div>
           ) : filteredAndSortedTrips.length > 0 ? (
             <React.Fragment>
-              {/* Mobile Card View */}
-              <div className="lg:hidden space-y-4 p-4 sm:p-6">
+              {/* Mobile Card View - Monday.com Style */}
+              <div className="lg:hidden space-y-2 p-4">
                 {filteredAndSortedTrips.map((trip) => {
                   try {
                     if (!trip || !trip.id) return null;
@@ -1247,393 +1336,146 @@ function TripsPageContent() {
                     const isExpanded = expandedTripId === trip.id;
                     
                     return (
-                      <Card key={trip.id} className="overflow-hidden">
-                        <CardContent className="p-4">
-                          <div 
-                            className="cursor-pointer space-y-3"
-                            onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  )}
-                                  <h3 className="font-semibold text-lg truncate">{trip.name || 'Unnamed Trip'}</h3>
-                                </div>
-                                <div className="flex items-center gap-2 ml-6 mb-2 flex-shrink-0">
-                                  {getStatus(trip)}
-                                </div>
-                              </div>
+                      <div key={trip.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                        <div className="space-y-3">
+                          {/* Header Row */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0 space-y-2">
                               <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditTrip(trip);
-                                  }}
-                                  className="flex-shrink-0 hover:bg-primary/10"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteTrip(trip);
-                                  }}
-                                  className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <span className="font-mono text-xs text-gray-500 font-medium">#{trip.tripNumber || 'N/A'}</span>
+                                <h3 className="font-semibold text-base text-gray-900 truncate">{trip.name || 'Unnamed Trip'}</h3>
                               </div>
-                            </div>
-                            
-                            <div className="space-y-2 ml-6 text-sm">
-                              <div className="flex items-start gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate">{trip.origin || 'Origin TBD'}</p>
-                                  <p className="text-muted-foreground truncate">→ {trip.destination || 'Destination TBD'}</p>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                <span className="text-muted-foreground">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {getStatus(trip)}
+                                <span className="text-xs text-gray-500">
                                   {trip.startDate && trip.endDate ? (
-                                    <>
-                                      {format(new Date(trip.startDate), 'MMM d')} - {format(new Date(trip.endDate), 'MMM d, yyyy')}
-                                    </>
-                                  ) : (
-                                    'Date TBD'
-                                  )}
+                                    format(new Date(trip.startDate), 'MMM d') + ' - ' + format(new Date(trip.endDate), 'MMM d, yyyy')
+                                  ) : 'Date TBD'}
                                 </span>
                               </div>
-                              
-                              <div className="flex items-center gap-4 flex-wrap">
-                                <div className="flex items-center gap-2">
-                                  <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <DistanceDisplay 
-                                    distance={trip.distance || 0} 
-                                    variant="inline"
-                                    showLabel={false}
-                                    className="text-muted-foreground"
-                                  />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-muted-foreground truncate">
-                                    {getDriverName(trip.driverId)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Truck className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-muted-foreground truncate">
-                                    {getUnitName(trip.unitId)}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <div className="pt-2 border-t">
-                                <GrandTotalDisplay
-                                  cadAmount={totals.cad}
-                                  usdAmount={totals.usd}
-                                  primaryCurrency={primaryCurrency}
-                                  cadToUsdRate={cadToUsdRate}
-                                  usdToCadRate={usdToCadRate}
-                                  variant="compact"
-                                />
-                                {tripExpenses.length > 0 && (
-                                  <div className="pt-1">
-                                    <Badge variant="outline" className="text-xs">
-                                      {tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''}
-                                    </Badge>
-                                  </div>
-                                )}
-                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditTrip(trip);
+                                }}
+                                className="h-8 w-8 hover:bg-gray-100 text-gray-600"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTrip(trip);
+                                }}
+                                className="h-8 w-8 hover:bg-red-50 text-gray-600 hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                           
-                          {isExpanded && (
-                            <div className="mt-4 pt-4 border-t space-y-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold">Trip Expenses</h4>
-                                <Badge variant="outline">
-                                  {tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''}
-                                </Badge>
-                              </div>
-                              {tripExpenses.length > 0 ? (
-                                <div className="space-y-3">
-                                  {['CAD', 'USD'].map((currency) => {
-                                    const currencyExpenses = tripExpenses.filter((e: any) => 
-                                      e && e.originalCurrency === currency && typeof e.amount === 'number'
-                                    );
-                                    if (currencyExpenses.length === 0) return null;
-                                    
-                                    const currencyTotal = currencyExpenses.reduce((sum: number, e: any) => {
-                                      const amount = typeof e?.amount === 'number' ? e.amount : 0;
-                                      return sum + (isNaN(amount) ? 0 : amount);
-                                    }, 0);
-                                    
-                                    return (
-                                      <div key={currency} className="border rounded-lg p-3 bg-muted/30">
-                                        <div className="flex items-center justify-between mb-3">
-                                          <span className={`font-medium ${currency === 'CAD' ? 'text-blue-700' : 'text-green-700'}`}>
-                                            {currency} Expenses
-                                          </span>
-                                          <Badge variant="outline" className={currency === 'CAD' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-green-100 text-green-700 border-green-300'}>
-                                            {currencyTotal.toFixed(2)} {currency}
-                                          </Badge>
-                                        </div>
-                                        <div className="space-y-2">
-                                          {currencyExpenses
-                                            .filter((e: any) => e && e.id && e.date)
-                                            .sort((a: any, b: any) => {
-                                              try {
-                                                const dateA = a.date ? new Date(a.date).getTime() : 0;
-                                                const dateB = b.date ? new Date(b.date).getTime() : 0;
-                                                return isNaN(dateB) || isNaN(dateA) ? 0 : dateB - dateA;
-                                              } catch {
-                                                return 0;
-                                              }
-                                            })
-                                            .map((expense: any) => {
-                                              if (!expense || !expense.id) return null;
-                                              try {
-                                                const amount = typeof expense.amount === 'number' ? expense.amount : 0;
-                                                return (
-                                                  <div key={expense.id} className="p-2 bg-background rounded border text-sm">
-                                                    <div className="flex items-start justify-between gap-2 mb-1">
-                                                      <div className="flex-1 min-w-0">
-                                                        <p className="font-medium truncate">{expense.description || '-'}</p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                          {expense.date ? format(new Date(expense.date), 'MMM d, yyyy') : '-'}
-                                                        </p>
-                                                      </div>
-                                                      <div className="text-right flex-shrink-0">
-                                                        <p className="font-semibold text-red-600">{formatCurrency(amount, currency)}</p>
-                                                        {expense.category && (
-                                                          <Badge variant="destructive" className="text-xs mt-1">{expense.category}</Badge>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                    {(expense.vendorName || expense.notes) && (
-                                                      <div className="mt-1 pt-1 border-t text-xs text-muted-foreground">
-                                                        {expense.vendorName && <p>Vendor: {expense.vendorName}</p>}
-                                                        {expense.notes && <p className="truncate">{expense.notes}</p>}
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                );
-                                              } catch (error) {
-                                                console.error('Error rendering expense:', error, expense);
-                                                return null;
-                                              }
-                                            })
-                                            .filter(Boolean)}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-center py-6 text-muted-foreground text-sm">
-                                  <p>No expenses recorded for this trip yet.</p>
-                                  <p className="text-xs mt-1">Drivers can add expenses from their dashboard.</p>
-                                </div>
-                              )}
+                          {/* Route */}
+                          <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
+                            <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <RouteDisplay
+                                stops={trip.stops || []}
+                                origin={trip.origin}
+                                destination={trip.destination}
+                                originLocation={trip.originLocation}
+                                destinationLocation={trip.destinationLocation}
+                                variant="compact"
+                                maxStops={4}
+                                className="text-xs text-gray-700"
+                              />
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  } catch (error) {
-                    console.error('Error rendering trip:', error, trip);
-                    return null;
-                  }
-                }).filter(Boolean)}
-              </div>
-              
-              {/* Desktop Table View */}
-              <div className="hidden lg:block border-t">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50 border-b">
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Trip Name</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Unit</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Driver</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Route</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Dates</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider py-3 px-4">Status</TableHead>
-                        <TableHead className="text-right font-semibold text-xs uppercase tracking-wider py-3 px-4">Distance</TableHead>
-                        <TableHead className="text-right font-semibold text-xs uppercase tracking-wider py-3 px-4">Total Expenses</TableHead>
-                        <TableHead className="text-right font-semibold text-xs uppercase tracking-wider py-3 px-4">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                {filteredAndSortedTrips.map((trip) => {
-                  try {
-                    if (!trip || !trip.id) return null;
-                    const totals = getTripTotalExpenses(trip.id);
-                    const primaryCurrency = getPrimaryCurrency();
-                    const cadToUsdRate = getCADToUSDRate();
-                    const usdToCadRate = getUSDToCADRate();
-                    
-                    // Calculate grand total by converting to primary currency
-                    const cadInPrimary = convertCurrency(totals.cad, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
-                    const usdInPrimary = convertCurrency(totals.usd, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
-                    const grandTotal = cadInPrimary + usdInPrimary;
-                    
-                    const tripExpenses = (Array.isArray(transactions) ? transactions : []).filter((t: any) => 
-                      t && 
-                      typeof t === 'object' &&
-                      t.tripId === trip.id && 
-                      t.type === 'expense'
-                    );
-                    const isExpanded = expandedTripId === trip.id;
-                    
-                    return (
-                      <React.Fragment key={trip.id}>
-                      <TableRow 
-                        className={`cursor-pointer hover:bg-muted/50 ${expandedTripId === trip.id ? 'bg-muted/30' : ''}`}
-                        onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
-                      >
-                        <TableCell className="py-3 px-4">
-                          <div className="flex items-center gap-2 min-w-[150px]">
+                          </div>
+                          
+                          {/* Details Row */}
+                          <div className="flex items-center gap-4 pt-2 border-t border-gray-100 text-sm">
+                            <div className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              <span className="text-gray-600 truncate max-w-[100px]">{getDriverName(trip.driverId)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Truck className="h-3.5 w-3.5 text-gray-400" />
+                              <span className="text-gray-600 truncate max-w-[100px]">{getUnitName(trip.unitId)}</span>
+                            </div>
+                          </div>
+
+                          {/* Metrics Row */}
+                          <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
+                            <div className="flex items-center gap-1.5">
+                              <Route className="h-3.5 w-3.5 text-gray-400" />
+                              <DistanceDisplay 
+                                distance={trip.distance || 0} 
+                                variant="compact"
+                                showLabel={false}
+                                className="text-xs text-gray-600"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <GrandTotalDisplay
+                                cadAmount={totals.cad}
+                                usdAmount={totals.usd}
+                                primaryCurrency={primaryCurrency}
+                                cadToUsdRate={cadToUsdRate}
+                                usdToCadRate={usdToCadRate}
+                                variant="compact"
+                                className="text-xs font-medium text-gray-900"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Expand Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                            className="w-full h-8 text-xs justify-between"
+                          >
+                            <span>{tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''}</span>
                             {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <ChevronDown className="h-4 w-4" />
                             ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <ChevronRight className="h-4 w-4" />
                             )}
-                            <span className="font-medium text-sm">{trip.name || 'Unnamed Trip'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3 px-4">
-                          <span className="text-sm text-muted-foreground">{getUnitName(trip.unitId)}</span>
-                        </TableCell>
-                        <TableCell className="py-3 px-4">
-                          <span className="text-sm text-muted-foreground">{getDriverName(trip.driverId)}</span>
-                        </TableCell>
-                        <TableCell className="py-3 px-4 min-w-[200px]">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm font-medium leading-tight">{trip.origin || 'Origin TBD'}</span>
-                            <span className="text-xs text-muted-foreground leading-tight flex items-center gap-1">
-                              <span className="text-primary">→</span>
-                              <span>{trip.destination || 'Destination TBD'}</span>
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3 px-4 min-w-[140px]">
-                          <div className="flex flex-col gap-1">
-                            {trip.startDate && trip.endDate ? (
-                              <>
-                                <span className="text-sm leading-tight">{format(new Date(trip.startDate), 'MMM d, yyyy')}</span>
-                                <span className="text-xs text-muted-foreground leading-tight">to {format(new Date(trip.endDate), 'MMM d, yyyy')}</span>
-                              </>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">Date TBD</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3 px-4">
-                          {getStatus(trip)}
-                        </TableCell>
-                        <TableCell className="text-right py-3 px-4">
-                          <DistanceDisplay 
-                            distance={trip.distance || 0} 
-                            variant="compact"
-                            showLabel={false}
-                            className="items-end"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right py-3 px-4">
-                          <GrandTotalDisplay
-                            cadAmount={totals.cad}
-                            usdAmount={totals.usd}
-                            primaryCurrency={getPrimaryCurrency()}
-                            cadToUsdRate={getCADToUSDRate()}
-                            usdToCadRate={getUSDToCADRate()}
-                            variant="compact"
-                            className="items-end"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditTrip(trip)}
-                              className="hover:bg-primary/10"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteTrip(trip)}
-                              className="hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && (
-                        <TableRow>
-                          <TableCell colSpan={9} className="bg-muted/30 p-0 border-t">
-                            <div className="p-6">
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                                <h4 className="font-semibold text-lg">Trip Expenses</h4>
-                                <Badge variant="outline">
-                                  {tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''}
-                                </Badge>
-                              </div>
-                              {tripExpenses.length > 0 ? (
-                                <div className="space-y-4">
-                                  {/* Group expenses by currency */}
-                                  {['CAD', 'USD'].map((currency) => {
-                                    const currencyExpenses = tripExpenses.filter((e: any) => 
-                                      e && e.originalCurrency === currency && typeof e.amount === 'number'
-                                    );
-                                    if (currencyExpenses.length === 0) return null;
-                                    
-                                    const currencyTotal = currencyExpenses.reduce((sum: number, e: any) => {
-                                      const amount = typeof e?.amount === 'number' ? e.amount : 0;
-                                      return sum + (isNaN(amount) ? 0 : amount);
-                                    }, 0);
-                                    
-                                    return (
-                                      <div key={currency} className="border rounded-lg p-3 sm:p-4 bg-background">
-                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
-                                          <h5 className="font-medium flex items-center gap-2">
-                                            <span className={currency === 'CAD' ? 'text-blue-700' : 'text-green-700'}>
+                          </Button>
+
+                          {/* Expanded Expenses */}
+                          {isExpanded && (
+                              <div className="pt-3 border-t space-y-3">
+                                <h4 className="font-semibold text-sm">Trip Expenses</h4>
+                                {tripExpenses.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {['CAD', 'USD'].map((currency) => {
+                                      const currencyExpenses = tripExpenses.filter((e: any) => 
+                                        e && e.originalCurrency === currency && typeof e.amount === 'number'
+                                      );
+                                      if (currencyExpenses.length === 0) return null;
+                                      
+                                      const currencyTotal = currencyExpenses.reduce((sum: number, e: any) => {
+                                        const amount = typeof e?.amount === 'number' ? e.amount : 0;
+                                        return sum + (isNaN(amount) ? 0 : amount);
+                                      }, 0);
+                                      
+                                      return (
+                                        <div key={currency} className="border rounded-lg p-3 bg-muted/30">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <span className={`text-xs font-medium ${currency === 'CAD' ? 'text-blue-700 dark:text-blue-300' : 'text-green-700 dark:text-green-300'}`}>
                                               {currency} Expenses
                                             </span>
-                                            <Badge variant="outline" className={currency === 'CAD' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-green-100 text-green-700 border-green-300'}>
+                                            <Badge variant="outline" className={`text-xs h-5 ${currency === 'CAD' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' : 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-300'}`}>
                                               {currencyTotal.toFixed(2)} {currency}
                                             </Badge>
-                                          </h5>
-                                        </div>
-                                        <div className="overflow-x-auto -mx-3 sm:mx-0">
-                                          <Table>
-                                            <TableHeader>
-                                              <TableRow>
-                                                <TableHead className="text-xs sm:text-sm">Date</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Description</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Category</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Vendor</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Amount</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Notes</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">Receipt</TableHead>
-                                              </TableRow>
-                                            </TableHeader>
-                                          <TableBody>
+                                          </div>
+                                          <div className="space-y-1.5">
                                             {currencyExpenses
                                               .filter((e: any) => e && e.id && e.date)
                                               .sort((a: any, b: any) => {
@@ -1647,74 +1489,31 @@ function TripsPageContent() {
                                               })
                                               .map((expense: any) => {
                                                 if (!expense || !expense.id) return null;
-                                                
                                                 try {
-                                                  const primaryCurrency = getPrimaryCurrency();
-                                                  const cadToUsdRate = getCADToUSDRate();
-                                                  const usdToCadRate = getUSDToCADRate();
                                                   const amount = typeof expense.amount === 'number' ? expense.amount : 0;
-                                                  const currency = expense.originalCurrency || primaryCurrency;
-                                                  const convertedAmount = convertCurrency(
-                                                    amount,
-                                                    currency,
-                                                    primaryCurrency,
-                                                    cadToUsdRate,
-                                                    usdToCadRate
-                                                  );
-                                                  
                                                   return (
-                                                    <TableRow key={expense.id}>
-                                                      <TableCell>
-                                                        {expense.date ? format(new Date(expense.date), 'MMM d, yyyy') : '-'}
-                                                      </TableCell>
-                                                      <TableCell className="font-medium">
-                                                        {expense.description || '-'}
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        <Badge variant="destructive">{expense.category || 'N/A'}</Badge>
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        {expense.vendorName || (
-                                                          <span className="text-muted-foreground">N/A</span>
-                                                        )}
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        <div className="flex flex-col">
-                                                          <span className="font-semibold text-red-600">
-                                                            {formatCurrency(amount, currency)}
-                                                          </span>
-                                                          {currency !== primaryCurrency && !isNaN(convertedAmount) && (
-                                                            <span className="text-xs text-muted-foreground">
-                                                              ≈ {formatCurrency(convertedAmount, primaryCurrency)}
-                                                            </span>
+                                                    <div key={expense.id} className="p-2 bg-background rounded border text-xs">
+                                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                                        <div className="flex-1 min-w-0">
+                                                          <p className="font-medium truncate">{expense.description || '-'}</p>
+                                                          <p className="text-xs text-muted-foreground mt-0.5">
+                                                            {expense.date ? format(new Date(expense.date), 'MMM d, yyyy') : '-'}
+                                                          </p>
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0">
+                                                          <p className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(amount, currency as Currency)}</p>
+                                                          {expense.category && (
+                                                            <Badge variant="destructive" className="text-[10px] mt-1 h-4">{expense.category}</Badge>
                                                           )}
                                                         </div>
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        {expense.notes ? (
-                                                          <span className="text-sm">{expense.notes}</span>
-                                                        ) : (
-                                                          <span className="text-muted-foreground text-sm">-</span>
-                                                        )}
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        {expense.receiptUrl ? (
-                                                          <a
-                                                            href={expense.receiptUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-primary hover:underline flex items-center gap-1"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                          >
-                                                            <Receipt className="h-4 w-4" />
-                                                            <span className="text-sm">View</span>
-                                                            <ExternalLink className="h-3 w-3" />
-                                                          </a>
-                                                        ) : (
-                                                          <span className="text-muted-foreground text-sm">-</span>
-                                                        )}
-                                                      </TableCell>
-                                                    </TableRow>
+                                                      </div>
+                                                      {(expense.vendorName || expense.notes) && (
+                                                        <div className="mt-1 pt-1 border-t text-[10px] text-muted-foreground">
+                                                          {expense.vendorName && <p>Vendor: {expense.vendorName}</p>}
+                                                          {expense.notes && <p className="truncate">{expense.notes}</p>}
+                                                        </div>
+                                                      )}
+                                                    </div>
                                                   );
                                                 } catch (error) {
                                                   console.error('Error rendering expense:', error, expense);
@@ -1722,32 +1521,333 @@ function TripsPageContent() {
                                                 }
                                               })
                                               .filter(Boolean)}
-                                          </TableBody>
-                                        </Table>
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  <p>No expenses recorded for this trip yet.</p>
-                                  <p className="text-sm mt-2">Drivers can add expenses to this trip from their dashboard.</p>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4 text-muted-foreground text-xs">
+                                    <p>No expenses recorded for this trip yet.</p>
+                                    <p className="text-[10px] mt-1">Drivers can add expenses from their dashboard.</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                    );
                   } catch (error) {
                     console.error('Error rendering trip:', error, trip);
                     return null;
                   }
                 }).filter(Boolean)}
+              </div>
+              
+              {/* Desktop Table View - Monday.com Style */}
+              <div className="hidden lg:block">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
+                    <TableHeader className="sticky top-0 z-10 bg-white border-b border-gray-200">
+                      <TableRow className="border-b border-gray-200 hover:bg-transparent">
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Trip #</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Trip Name</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Unit</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Driver</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Route</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Dates</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50">Status</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50 text-right">Distance</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50 text-right whitespace-nowrap">Total Expenses</TableHead>
+                        <TableHead className="font-medium text-xs text-gray-600 py-3 px-4 h-11 bg-gray-50 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedTrips.map((trip) => {
+                        try {
+                          if (!trip || !trip.id) return null;
+                          const totals = getTripTotalExpenses(trip.id);
+                          const primaryCurrency = getPrimaryCurrency();
+                          const cadToUsdRate = getCADToUSDRate();
+                          const usdToCadRate = getUSDToCADRate();
+                          
+                          // Calculate grand total by converting to primary currency
+                          const cadInPrimary = convertCurrency(totals.cad, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
+                          const usdInPrimary = convertCurrency(totals.usd, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
+                          const grandTotal = cadInPrimary + usdInPrimary;
+                          
+                          const tripExpenses = (Array.isArray(transactions) ? transactions : []).filter((t: any) => 
+                            t && 
+                            typeof t === 'object' &&
+                            t.tripId === trip.id && 
+                            t.type === 'expense'
+                          );
+                          const isExpanded = expandedTripId === trip.id;
+                          
+                          return (
+                            <React.Fragment key={trip.id}>
+                              <TableRow 
+                                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${expandedTripId === trip.id ? 'bg-blue-50/50' : 'bg-white'}`}
+                                onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                              >
+                                <TableCell className="py-3 px-4">
+                                  <span className="font-mono text-sm font-medium text-gray-600">
+                                    #{trip.tripNumber || 'N/A'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-3 px-4">
+                                  <div className="flex items-center gap-2 min-w-[180px]">
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                    )}
+                                    <span className="font-medium text-sm text-gray-900">{trip.name || 'Unnamed Trip'}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-3 px-4">
+                                  <span className="text-sm text-gray-700">{getUnitName(trip.unitId)}</span>
+                                </TableCell>
+                                <TableCell className="py-3 px-4">
+                                  <span className="text-sm text-gray-700">{getDriverName(trip.driverId)}</span>
+                                </TableCell>
+                                <TableCell className="py-3 px-4 min-w-[200px] max-w-[280px]">
+                                  <RouteDisplay
+                                    stops={trip.stops || []}
+                                    origin={trip.origin}
+                                    destination={trip.destination}
+                                    originLocation={trip.originLocation}
+                                    destinationLocation={trip.destinationLocation}
+                                    variant="compact"
+                                    maxStops={3}
+                                    className="text-sm text-gray-700"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-3 px-4 min-w-[140px] whitespace-nowrap">
+                                  <div className="flex flex-col gap-0.5">
+                                    {trip.startDate && trip.endDate ? (
+                                      <>
+                                        <span className="text-sm font-medium text-gray-900 leading-tight">{format(new Date(trip.startDate), 'MMM d, yyyy')}</span>
+                                        <span className="text-xs text-gray-500 leading-tight">to {format(new Date(trip.endDate), 'MMM d, yyyy')}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm text-gray-500">Date TBD</span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-3 px-4">
+                                  {getStatus(trip)}
+                                </TableCell>
+                                <TableCell className="text-right py-3 px-4">
+                                  <DistanceDisplay 
+                                    distance={trip.distance || 0} 
+                                    variant="compact"
+                                    showLabel={false}
+                                    className="items-end justify-end text-gray-700"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right py-3 px-4 whitespace-nowrap">
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <GrandTotalDisplay
+                                      cadAmount={totals.cad}
+                                      usdAmount={totals.usd}
+                                      primaryCurrency={getPrimaryCurrency()}
+                                      cadToUsdRate={getCADToUSDRate()}
+                                      usdToCadRate={getUSDToCADRate()}
+                                      variant="compact"
+                                      className="text-gray-900 font-medium text-sm"
+                                    />
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditTrip(trip)}
+                                      className="h-8 w-8 hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteTrip(trip)}
+                                      className="h-8 w-8 hover:bg-red-50 text-gray-600 hover:text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                              {isExpanded && (
+                                <TableRow>
+                                  <TableCell colSpan={10} className="bg-muted/20 p-0 border-t">
+                                    <div className="p-6">
+                                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                                        <h4 className="font-semibold text-base">Trip Expenses</h4>
+                                        <Badge variant="outline">
+                                          {tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''}
+                                        </Badge>
+                                      </div>
+                                      {tripExpenses.length > 0 ? (
+                                        <div className="space-y-4">
+                                          {/* Group expenses by currency */}
+                                          {['CAD', 'USD'].map((currency) => {
+                                            const currencyExpenses = tripExpenses.filter((e: any) => 
+                                              e && e.originalCurrency === currency && typeof e.amount === 'number'
+                                            );
+                                            if (currencyExpenses.length === 0) return null;
+                                            
+                                            const currencyTotal = currencyExpenses.reduce((sum: number, e: any) => {
+                                              const amount = typeof e?.amount === 'number' ? e.amount : 0;
+                                              return sum + (isNaN(amount) ? 0 : amount);
+                                            }, 0);
+                                            
+                                            return (
+                                              <div key={currency} className="border rounded-lg p-4 bg-background">
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+                                                  <h5 className="font-medium flex items-center gap-2">
+                                                    <span className={currency === 'CAD' ? 'text-blue-700 dark:text-blue-300' : 'text-green-700 dark:text-green-300'}>
+                                                      {currency} Expenses
+                                                    </span>
+                                                    <Badge variant="outline" className={currency === 'CAD' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' : 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-300'}>
+                                                      {currencyTotal.toFixed(2)} {currency}
+                                                    </Badge>
+                                                  </h5>
+                                                </div>
+                                                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                                                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                                                    <Table className="min-w-full">
+                                                      <TableHeader>
+                                                        <TableRow>
+                                                          <TableHead className="text-xs whitespace-nowrap">Date</TableHead>
+                                                          <TableHead className="text-xs min-w-[150px]">Description</TableHead>
+                                                          <TableHead className="text-xs whitespace-nowrap">Category</TableHead>
+                                                          <TableHead className="text-xs whitespace-nowrap min-w-[100px]">Vendor</TableHead>
+                                                          <TableHead className="text-xs text-right whitespace-nowrap">Amount</TableHead>
+                                                          <TableHead className="text-xs min-w-[120px] max-w-[200px]">Notes</TableHead>
+                                                          <TableHead className="text-xs whitespace-nowrap">Receipt</TableHead>
+                                                        </TableRow>
+                                                      </TableHeader>
+                                                    <TableBody>
+                                                      {currencyExpenses
+                                                        .filter((e: any) => e && e.id && e.date)
+                                                        .sort((a: any, b: any) => {
+                                                          try {
+                                                            const dateA = a.date ? new Date(a.date).getTime() : 0;
+                                                            const dateB = b.date ? new Date(b.date).getTime() : 0;
+                                                            return isNaN(dateB) || isNaN(dateA) ? 0 : dateB - dateA;
+                                                          } catch {
+                                                            return 0;
+                                                          }
+                                                        })
+                                                        .map((expense: any) => {
+                                                          if (!expense || !expense.id) return null;
+                                                          
+                                                          try {
+                                                            const primaryCurrency = getPrimaryCurrency();
+                                                            const cadToUsdRate = getCADToUSDRate();
+                                                            const usdToCadRate = getUSDToCADRate();
+                                                            const amount = typeof expense.amount === 'number' ? expense.amount : 0;
+                                                            const currency = expense.originalCurrency || primaryCurrency;
+                                                            const convertedAmount = convertCurrency(
+                                                              amount,
+                                                              currency,
+                                                              primaryCurrency,
+                                                              cadToUsdRate,
+                                                              usdToCadRate
+                                                            );
+                                                            
+                                                            return (
+                                                              <TableRow key={expense.id}>
+                                                                <TableCell className="text-sm">
+                                                                  {expense.date ? format(new Date(expense.date), 'MMM d, yyyy') : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="font-medium text-sm">
+                                                                  {expense.description || '-'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                  <Badge variant="destructive" className="text-xs">{expense.category || 'N/A'}</Badge>
+                                                                </TableCell>
+                                                                <TableCell className="text-sm">
+                                                                  {expense.vendorName || (
+                                                                    <span className="text-muted-foreground">N/A</span>
+                                                                  )}
+                                                                </TableCell>
+                                                                <TableCell className="text-right whitespace-nowrap">
+                                                                  <div className="flex flex-col items-end gap-0.5">
+                                                                    <span className="font-semibold text-red-600 dark:text-red-400 text-sm leading-tight">
+                                                                      {formatCurrency(amount, currency)}
+                                                                    </span>
+                                                                    {currency !== primaryCurrency && !isNaN(convertedAmount) && (
+                                                                      <span className="text-xs text-muted-foreground leading-tight">
+                                                                        ≈ {formatCurrency(convertedAmount, primaryCurrency)}
+                                                                      </span>
+                                                                    )}
+                                                                  </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-sm max-w-[200px]">
+                                                                  {expense.notes ? (
+                                                                    <span className="truncate block">{expense.notes}</span>
+                                                                  ) : (
+                                                                    <span className="text-muted-foreground">-</span>
+                                                                  )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                  {expense.receiptUrl ? (
+                                                                    <a
+                                                                      href={expense.receiptUrl}
+                                                                      target="_blank"
+                                                                      rel="noopener noreferrer"
+                                                                      className="text-primary hover:underline flex items-center gap-1 text-sm"
+                                                                      onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                      <Receipt className="h-4 w-4" />
+                                                                      <span>View</span>
+                                                                      <ExternalLink className="h-3 w-3" />
+                                                                    </a>
+                                                                  ) : (
+                                                                    <span className="text-muted-foreground text-sm">-</span>
+                                                                  )}
+                                                                </TableCell>
+                                                              </TableRow>
+                                                            );
+                                                          } catch (error) {
+                                                            console.error('Error rendering expense:', error, expense);
+                                                            return null;
+                                                          }
+                                                        })
+                                                        .filter(Boolean)}
+                                                    </TableBody>
+                                                    </Table>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="text-center py-12 text-muted-foreground">
+                                          <p className="text-sm">No expenses recorded for this trip yet.</p>
+                                          <p className="text-xs mt-2">Drivers can add expenses to this trip from their dashboard.</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        } catch (error) {
+                          console.error('Error rendering trip:', error, trip);
+                          return null;
+                        }
+                      }).filter(Boolean)}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 </div>
               </div>
             </React.Fragment>
@@ -1757,20 +1857,23 @@ function TripsPageContent() {
                 <Route className="h-8 w-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No trips found</h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-md">
-                Get started by logging your first trip. Track routes, assign drivers and units, and monitor expenses.
+              <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                {trips.length > 0 
+                  ? 'No trips match your current filters. Try adjusting your search criteria.'
+                  : 'Get started by logging your first trip. Track routes, assign drivers and units, and monitor expenses.'}
               </p>
-              <Button onClick={() => {
-                resetForm();
-                setOpen(true);
-              }} variant="outline">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Log Your First Trip
-              </Button>
+              {trips.length === 0 && (
+                <Button onClick={() => {
+                  resetForm();
+                  setOpen(true);
+                }} variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Log Your First Trip
+                </Button>
+              )}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1793,6 +1896,7 @@ function TripsPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
     </div>
   );
 }
