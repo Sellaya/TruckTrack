@@ -76,6 +76,10 @@ function DriverDashboardContent() {
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'status'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Exchange rates - available throughout component
+  const cadToUsdRate = useMemo(() => getCADToUSDRate(), []);
+  const usdToCadRate = useMemo(() => getUSDToCADRate(), []);
+
   useEffect(() => {
     const loadDriverData = async () => {
       const session = getDriverSession();
@@ -717,8 +721,6 @@ function DriverDashboardContent() {
                 }, { cad: 0, usd: 0 });
 
                 const primaryCurrency = getPrimaryCurrency();
-                const cadToUsdRate = getCADToUSDRate();
-                const usdToCadRate = getUSDToCADRate();
                 
                 // Calculate grand total by converting to primary currency
                 const cadInPrimary = convertCurrency(allTotals.cad, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
