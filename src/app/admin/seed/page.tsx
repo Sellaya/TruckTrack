@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Seed, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { Database, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface SeedResult {
@@ -23,6 +23,7 @@ interface SeedResult {
 export default function SeedPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [result, setResult] = useState<SeedResult | null>(null);
+  const { toast } = useToast();
 
   const handleSeed = async () => {
     setIsSeeding(true);
@@ -40,12 +41,15 @@ export default function SeedPage() {
       setResult(data);
 
       if (data.success) {
-        toast.success('Database seeded successfully!', {
+        toast({
+          title: 'Database seeded successfully!',
           description: data.message,
         });
       } else {
-        toast.error('Seed completed with errors', {
+        toast({
+          title: 'Seed completed with errors',
           description: data.message,
+          variant: 'destructive',
         });
       }
     } catch (error: any) {
@@ -55,8 +59,10 @@ export default function SeedPage() {
         message: `Failed to seed database: ${error.message || error}`,
       };
       setResult(errorResult);
-      toast.error('Failed to seed database', {
+      toast({
+        title: 'Failed to seed database',
         description: error.message || 'Unknown error occurred',
+        variant: 'destructive',
       });
     } finally {
       setIsSeeding(false);
@@ -67,7 +73,7 @@ export default function SeedPage() {
     <div className="flex flex-col gap-6 p-4 sm:p-6">
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Seed className="h-5 w-5 text-primary" />
+          <Database className="h-5 w-5 text-primary" />
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Seed Database</h1>
@@ -106,7 +112,7 @@ export default function SeedPage() {
                 </>
               ) : (
                 <>
-                  <Seed className="mr-2 h-4 w-4" />
+                  <Database className="mr-2 h-4 w-4" />
                   Start Seeding
                 </>
               )}
