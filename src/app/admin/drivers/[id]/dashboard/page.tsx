@@ -79,6 +79,7 @@ export default function DriverDashboardViewPage() {
     notes: '',
     receiptUrl: '',
   });
+  const [otherCategory, setOtherCategory] = useState('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -247,8 +248,21 @@ export default function DriverDashboardViewPage() {
       });
       return;
     }
+    
+    // Validate "Other" category has custom value
+    if (expenseForm.category === 'Other' && !otherCategory.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please specify the category name when selecting 'Other'.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      // Use custom category if "Other" is selected, otherwise use selected category
+      const finalCategory = expenseForm.category === 'Other' ? otherCategory.trim() : expenseForm.category;
+      
       if (editingExpense) {
         // Update existing expense
         const { updateTransaction } = await import('@/lib/supabase/database');
@@ -257,7 +271,7 @@ export default function DriverDashboardViewPage() {
           description: expenseForm.description,
           amount: parseFloat(expenseForm.amount),
           originalCurrency: expenseForm.currency,
-          category: expenseForm.category,
+          category: finalCategory,
           unitId: expenseForm.unitId || undefined,
           tripId: expenseForm.tripId && expenseForm.tripId !== 'none' ? expenseForm.tripId : undefined,
           vendorName: expenseForm.vendorName || undefined,
@@ -287,7 +301,7 @@ export default function DriverDashboardViewPage() {
           description: expenseForm.description,
           amount: parseFloat(expenseForm.amount),
           originalCurrency: expenseForm.currency,
-          category: expenseForm.category,
+          category: finalCategory,
           unitId: expenseForm.unitId || undefined,
           tripId: tripId,
           vendorName: expenseForm.vendorName || undefined,
@@ -329,6 +343,7 @@ export default function DriverDashboardViewPage() {
         notes: '',
         receiptUrl: '',
       });
+      setOtherCategory('');
       setExpenseDialogOpen(false);
       setSelectedTripId(null);
       setEditingExpense(null);
@@ -345,6 +360,10 @@ export default function DriverDashboardViewPage() {
   const openExpenseDialog = (tripId?: string, expense?: Transaction) => {
     if (expense) {
       // Editing existing expense
+      // Check if category is in the standard list, otherwise treat as "Other"
+      const standardCategories = ['Fuel', 'Repairs & Maintenance', 'Tires', 'Tolls', 'Parking', 'Insurance', 'Permits', 'Driver pay / subcontractor pay', 'Lodging', 'Meals', 'Miscellaneous'];
+      const isCustomCategory = !standardCategories.includes(expense.category);
+      
       setEditingExpense(expense);
       setSelectedTripId(expense.tripId || tripId || null);
       setExpenseForm({
@@ -352,13 +371,14 @@ export default function DriverDashboardViewPage() {
         tripId: expense.tripId || '',
         description: expense.description,
         amount: expense.amount.toString(),
-        category: expense.category,
+        category: isCustomCategory ? 'Other' : expense.category,
         currency: expense.originalCurrency,
         vendorName: expense.vendorName || '',
         date: expense.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         notes: expense.notes || '',
         receiptUrl: expense.receiptUrl || '',
       });
+      setOtherCategory(isCustomCategory ? expense.category : '');
     } else {
       // Adding new expense
       setEditingExpense(null);
@@ -376,6 +396,7 @@ export default function DriverDashboardViewPage() {
         notes: '',
         receiptUrl: '',
       });
+      setOtherCategory('');
     }
     setExpenseDialogOpen(true);
   };
@@ -429,89 +450,106 @@ export default function DriverDashboardViewPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-full">
-      {/* Header */}
-      <div className="flex flex-col gap-4">
-        <Button
-          variant="ghost"
-          onClick={() => router.push('/admin/drivers/view')}
-          className="w-fit"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Drivers
-        </Button>
-        <Card>
+    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+      {/* Header Section - Monday.com Style */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/drivers')}
+              className="h-9 px-3 rounded-lg -ml-2"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Back to Drivers</span>
+              <span className="sm:hidden">Back</span>
+            </Button>
+            <div className="h-6 w-px bg-gray-300" />
+            <h1 className="text-2xl font-semibold text-gray-900">{driver.name}</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-6">
+        {/* Driver Info Card - Monday.com Style */}
+        <Card className="mb-6 border border-gray-200 rounded-lg shadow-sm">
           <CardContent className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="h-8 w-8 text-primary" />
+              <div className="h-16 w-16 rounded-full bg-[#0073ea]/10 flex items-center justify-center flex-shrink-0">
+                <User className="h-8 w-8 text-[#0073ea]" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold truncate">{driver.name}</h1>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 flex-wrap">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{driver.name}</h2>
+                  <Badge 
+                    variant={driver.isActive ? "default" : "secondary"}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      driver.isActive 
+                        ? 'bg-green-100 text-green-700 border-green-200' 
+                        : 'bg-gray-100 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    {driver.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Mail className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">{driver.email}</span>
                   </div>
                   {driver.phone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Phone className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{driver.phone}</span>
                     </div>
                   )}
                   {driver.licenseNumber && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
                       <CreditCard className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{driver.licenseNumber}</span>
                     </div>
                   )}
-                  <Badge 
-                    variant={driver.isActive ? "default" : "secondary"}
-                    className="w-fit text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 h-5 sm:h-6"
-                  >
-                    {driver.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Route className="h-4 w-4" />
-              Total Trips
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold">{trips.length}</div>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              {completedTrips.length} completed, {ongoingTrips.length} ongoing, {upcomingTrips.length} upcoming
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Total Expenses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <GrandTotalDisplay
-              cadAmount={cadTotal}
-              usdAmount={usdTotal}
-              primaryCurrency={primaryCurrency}
-              cadToUsdRate={cadToUsdRate}
-              usdToCadRate={usdToCadRate}
-            />
-          </CardContent>
-        </Card>
-      </div>
+        {/* Summary Cards - Monday.com Style */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <Card className="border border-gray-200 rounded-lg shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-gray-900">Total Trips</CardTitle>
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Route className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{trips.length}</div>
+              <p className="text-xs text-gray-600 mt-1">
+                {completedTrips.length} completed, {ongoingTrips.length} ongoing, {upcomingTrips.length} upcoming
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border border-gray-200 rounded-lg shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-gray-900">Total Expenses</CardTitle>
+              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <GrandTotalDisplay
+                cadAmount={cadTotal}
+                usdAmount={usdTotal}
+                primaryCurrency={primaryCurrency}
+                cadToUsdRate={cadToUsdRate}
+                usdToCadRate={usdToCadRate}
+              />
+            </CardContent>
+          </Card>
+        </div>
 
       {/* Filter and Sort Controls */}
       <Card>
@@ -1542,14 +1580,14 @@ export default function DriverDashboardViewPage() {
         </Card>
       )}
 
-      {/* Add Expense Dialog */}
+      {/* Add Expense Dialog - Monday.com Style */}
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
               {editingExpense ? 'Edit Expense' : 'Add Expense'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm text-gray-600 mt-2">
               {editingExpense 
                 ? 'Update the expense details below. Changes will be reflected immediately.'
                 : 'Add a new expense for this driver. All fields marked with * are required.'}
@@ -1597,7 +1635,13 @@ export default function DriverDashboardViewPage() {
               <Label htmlFor="category" className="sm:text-right">Category *</Label>
               <Select
                 value={expenseForm.category}
-                onValueChange={(value) => setExpenseForm(prev => ({ ...prev, category: value }))}
+                onValueChange={(value) => {
+                  setExpenseForm(prev => ({ ...prev, category: value }));
+                  // Clear otherCategory if switching away from "Other"
+                  if (value !== 'Other') {
+                    setOtherCategory('');
+                  }
+                }}
               >
                 <SelectTrigger className="sm:col-span-3">
                   <SelectValue placeholder="Select expense category" />
@@ -1611,11 +1655,25 @@ export default function DriverDashboardViewPage() {
                   <SelectItem value="Insurance">Insurance</SelectItem>
                   <SelectItem value="Permits">Permits</SelectItem>
                   <SelectItem value="Driver pay / subcontractor pay">Driver pay / subcontractor pay</SelectItem>
-                  <SelectItem value="Lodging / Meals">Lodging / Meals</SelectItem>
+                  <SelectItem value="Lodging">Lodging</SelectItem>
+                  <SelectItem value="Meals">Meals</SelectItem>
                   <SelectItem value="Miscellaneous">Miscellaneous</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {expenseForm.category === 'Other' && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
+                <Label htmlFor="otherCategory" className="sm:text-right">Category Name *</Label>
+                <Input
+                  id="otherCategory"
+                  value={otherCategory}
+                  onChange={(e) => setOtherCategory(e.target.value)}
+                  className="sm:col-span-3"
+                  placeholder="Enter custom category name"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label htmlFor="unitId" className="sm:text-right">Truck *</Label>
               <Select
@@ -1706,16 +1764,17 @@ export default function DriverDashboardViewPage() {
             </div>
           </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="bg-gray-50 border-t border-gray-100 px-6 py-4 space-x-3">
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline" className="hover:bg-gray-100">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSaveExpense} className="bg-[#0073ea] hover:bg-[#0058c2]">
+            <Button onClick={handleSaveExpense} className="bg-[#0073ea] hover:bg-[#0058c2] text-white">
               {editingExpense ? 'Update Expense' : 'Add Expense'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

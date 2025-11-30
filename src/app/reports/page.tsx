@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet, Calendar, Filter, User, Truck, MapPin, Route, TrendingUp, X } from "lucide-react";
+import { Download, FileSpreadsheet, Calendar, Filter, User, Truck, MapPin, Route, TrendingUp, X, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getTransactions, getTrips, getDrivers, getUnits } from '@/lib/data';
 import type { Trip, Transaction, Driver, Unit } from '@/lib/types';
@@ -367,14 +368,26 @@ export default function ReportsPage() {
               <span className="text-sm text-gray-500">({filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'})</span>
             )}
           </div>
-          <Button 
-            onClick={handleExportTrips} 
-            disabled={isLoading || filteredTrips.length === 0}
-            className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export Report
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => router.push('/reports/ifta')}
+              className="h-9 px-4 rounded-md font-medium"
+            >
+              <Receipt className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">IFTA Reports</span>
+              <span className="sm:hidden">IFTA</span>
+            </Button>
+            <Button 
+              onClick={handleExportTrips} 
+              disabled={isLoading || filteredTrips.length === 0}
+              className="bg-[#0073ea] hover:bg-[#0058c2] text-white h-9 px-4 rounded-md font-medium shadow-sm hover:shadow-md transition-all"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Export Report</span>
+              <span className="sm:hidden">Export</span>
+            </Button>
+          </div>
         </div>
       </div>
 

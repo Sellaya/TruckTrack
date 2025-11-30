@@ -66,6 +66,7 @@ function DriverDashboardContent() {
     notes: '',
     receiptUrl: '',
   });
+  const [otherCategory, setOtherCategory] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -300,6 +301,16 @@ function DriverDashboardContent() {
       });
       return;
     }
+    
+    // Validate "Other" category has custom value
+    if (expenseForm.category === 'Other' && !otherCategory.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please specify the category name when selecting 'Other'.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
     let receiptUrl = expenseForm.receiptUrl;
@@ -331,11 +342,14 @@ function DriverDashboardContent() {
         const lockedUnitId = expenseTrip?.unitId || editingExpense.unitId || undefined;
         const lockedTripId = editingExpense.tripId || undefined;
         
+        // Use custom category if "Other" is selected, otherwise use selected category
+        const finalCategory = expenseForm.category === 'Other' ? otherCategory.trim() : expenseForm.category;
+        
         const updatedExpense = await updateTransaction(editingExpense.id, {
           description: expenseForm.description,
           amount: parseFloat(expenseForm.amount),
           originalCurrency: expenseForm.currency,
-          category: expenseForm.category,
+          category: finalCategory,
           // Keep original unitId and tripId - drivers cannot change these (admin-only)
           unitId: lockedUnitId,
           tripId: lockedTripId,
@@ -365,19 +379,27 @@ function DriverDashboardContent() {
         if (!expenseForm.unitId) {
           throw new Error('Unit is required');
         }
+        
+        // Validate "Other" category has custom value
+        if (expenseForm.category === 'Other' && !otherCategory.trim()) {
+          throw new Error('Please specify the category name when selecting "Other"');
+        }
 
         // For new expenses: if trip is selected, use trip's unit; otherwise use selected unit
         // Drivers cannot change unit/trip assignment - it's locked to the trip they're adding expense to
         const selectedTrip = selectedTripId ? driverTrips.find(t => t.id === selectedTripId) : null;
         const finalUnitId = selectedTrip?.unitId || expenseForm.unitId || undefined;
         const finalTripId = selectedTripId && selectedTripId !== 'none' && selectedTripId.trim() !== '' ? selectedTripId : undefined;
+        
+        // Use custom category if "Other" is selected, otherwise use selected category
+        const finalCategory = expenseForm.category === 'Other' ? otherCategory.trim() : expenseForm.category;
 
         const transactionData = {
           type: 'expense' as const,
           description: expenseForm.description.trim(),
           amount: parseFloat(expenseForm.amount),
           originalCurrency: expenseForm.currency as 'USD' | 'CAD',
-          category: expenseForm.category,
+          category: finalCategory,
           unitId: finalUnitId,
           tripId: finalTripId,
           vendorName: expenseForm.vendorName?.trim() || undefined,
@@ -432,6 +454,7 @@ function DriverDashboardContent() {
         notes: '',
         receiptUrl: '',
       });
+      setOtherCategory('');
       setReceiptFile(null);
       setReceiptPreview(null);
       setExpenseDialogOpen(false);
@@ -531,18 +554,23 @@ function DriverDashboardContent() {
       const lockedUnitId = expenseTrip?.unitId || expense.unitId || '';
       const lockedTripId = expense.tripId || '';
       
+      // Check if category is in the standard list, otherwise treat as "Other"
+      const standardCategories = ['Fuel', 'Repairs & Maintenance', 'Tires', 'Tolls', 'Parking', 'Insurance', 'Permits', 'Driver pay / subcontractor pay', 'Lodging', 'Meals', 'Miscellaneous'];
+      const isCustomCategory = !standardCategories.includes(expense.category);
+      
       setExpenseForm({
         unitId: lockedUnitId,
         tripId: lockedTripId,
         description: expense.description,
         amount: expense.amount.toString(),
-        category: expense.category,
+        category: isCustomCategory ? 'Other' : expense.category,
         currency: expense.originalCurrency,
         vendorName: expense.vendorName || '',
         date: expense.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         notes: expense.notes || '',
         receiptUrl: expense.receiptUrl || '',
       });
+      setOtherCategory(isCustomCategory ? expense.category : '');
       setReceiptPreview(expense.receiptUrl || null);
       setReceiptFile(null);
       setSelectedTripId(expense.tripId || tripId || null);
@@ -564,6 +592,7 @@ function DriverDashboardContent() {
         notes: '',
         receiptUrl: '',
       });
+      setOtherCategory('');
       setReceiptPreview(null);
       setReceiptFile(null);
       setSelectedTripId(tripId || null);
@@ -1706,7 +1735,13 @@ function DriverDashboardContent() {
                 <Label htmlFor="category" className="sm:text-right">Category *</Label>
                 <Select
                   value={expenseForm.category}
-                  onValueChange={(value) => setExpenseForm(prev => ({ ...prev, category: value }))}
+                  onValueChange={(value) => {
+                    setExpenseForm(prev => ({ ...prev, category: value }));
+                    // Clear otherCategory if switching away from "Other"
+                    if (value !== 'Other') {
+                      setOtherCategory('');
+                    }
+                  }}
                 >
                   <SelectTrigger className="sm:col-span-3">
                     <SelectValue placeholder="Select expense category" />
@@ -1720,20 +1755,38 @@ function DriverDashboardContent() {
                     <SelectItem value="Insurance">Insurance</SelectItem>
                     <SelectItem value="Permits">Permits</SelectItem>
                     <SelectItem value="Driver pay / subcontractor pay">Driver pay / subcontractor pay</SelectItem>
-                    <SelectItem value="Lodging / Meals">Lodging / Meals</SelectItem>
+                    <SelectItem value="Lodging">Lodging</SelectItem>
+                    <SelectItem value="Meals">Meals</SelectItem>
                     <SelectItem value="Miscellaneous">Miscellaneous</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {expenseForm.category === 'Other' && (
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
+                  <Label htmlFor="otherCategory" className="sm:text-right">Category Name *</Label>
+                  <Input
+                    id="otherCategory"
+                    value={otherCategory}
+                    onChange={(e) => setOtherCategory(e.target.value)}
+                    className="sm:col-span-3"
+                    placeholder="Enter custom category name"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
                 <Label htmlFor="vendorName" className="sm:text-right">Vendor Name</Label>
-                <Input
-                  id="vendorName"
-                  value={expenseForm.vendorName}
-                  onChange={(e) => setExpenseForm(prev => ({ ...prev, vendorName: e.target.value }))}
-                  className="sm:col-span-3"
-                  placeholder="e.g., Petro-Canada, TA, Loves"
-                />
+                <div className="sm:col-span-3">
+                  <Input
+                    id="vendorName"
+                    value={expenseForm.vendorName}
+                    onChange={(e) => setExpenseForm(prev => ({ ...prev, vendorName: e.target.value }))}
+                    placeholder="e.g., Petro-Canada, TA, Loves"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter vendor name manually if not detected from receipt
+                  </p>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
                 <Label htmlFor="date" className="sm:text-right">Date *</Label>
