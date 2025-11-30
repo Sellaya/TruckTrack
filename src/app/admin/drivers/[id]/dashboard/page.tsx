@@ -18,9 +18,11 @@ import { getTransactionsByDriver as getTransactionsByDriverFromDB } from '@/lib/
 import type { Trip, Transaction, Driver, Unit } from '@/lib/types';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
-import { ArrowLeft, MapPin, Calendar, Route, Package, DollarSign, User, Phone, CreditCard, PlusCircle, Receipt, ChevronDown, ChevronRight, Mail, ArrowUpDown, ArrowUp, ArrowDown, Clock, Filter } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Route, Package, DollarSign, User, Phone, CreditCard, PlusCircle, Receipt, ChevronDown, ChevronRight, Mail, ArrowUpDown, ArrowUp, ArrowDown, Clock, Filter, Edit, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBothCurrencies, convertCurrency, getPrimaryCurrency, getCADToUSDRate, getUSDToCADRate, formatCurrency } from '@/lib/currency';
+import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
+import { DistanceDisplay } from '@/components/ui/distance-display';
 import { useToast } from '@/hooks/use-toast';
 import type { Currency } from '@/lib/types';
 import {
@@ -52,6 +54,7 @@ export default function DriverDashboardViewPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Transaction | null>(null);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -96,8 +99,17 @@ export default function DriverDashboardViewPage() {
         // Load transactions for this driver
         const driverTransactions = await getTransactionsByDriver(driverId);
         setTransactions(driverTransactions);
+        
+        // Load units
+        const allUnits = await getUnits();
+        setUnits(allUnits);
       } catch (error) {
         console.error('Error loading driver data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load driver data. Please try again.",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
@@ -106,7 +118,7 @@ export default function DriverDashboardViewPage() {
     if (driverId) {
       loadData();
     }
-  }, [driverId, router]);
+  }, [driverId, router, toast]);
 
   // Filter and sort trips
   const filteredAndSortedTrips = useMemo(() => {
@@ -184,6 +196,11 @@ export default function DriverDashboardViewPage() {
   const ongoingTrips = filteredAndSortedTrips.filter(t => t.status === 'ongoing');
   const upcomingTrips = filteredAndSortedTrips.filter(t => t.status === 'upcoming');
 
+  // Currency conversion rates (calculate once)
+  const primaryCurrency = getPrimaryCurrency();
+  const cadToUsdRate = getCADToUSDRate();
+  const usdToCadRate = getUSDToCADRate();
+
   // Group expenses by trip (computed from transactions state)
   const tripExpenses: Record<string, Transaction[]> = {};
   trips.forEach(trip => {
@@ -193,31 +210,32 @@ export default function DriverDashboardViewPage() {
     tripExpenses[trip.id] = tripExpensesList;
   });
 
-  const handleAddExpense = async () => {
-    if (!selectedTripId || !driverId) {
-      toast({
-        title: "Error",
-        description: "Missing trip or driver information.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Security check: Verify the trip is assigned to this driver
-    const selectedTrip = trips.find(t => t.id === selectedTripId);
-    if (!selectedTrip) {
-      toast({
-        title: "Error",
-        description: "Trip not found.",
-        variant: "destructive",
-      });
-      return;
-    }
+  // Calculate trip total expenses (CAD, USD, and Grand Total)
+  const getTripTotalExpenses = (tripId: string) => {
+    const expenses = tripExpenses[tripId] || [];
+    const cadTotal = expenses
+      .filter(e => e.originalCurrency === 'CAD')
+      .reduce((sum, e) => sum + e.amount, 0);
+    const usdTotal = expenses
+      .filter(e => e.originalCurrency === 'USD')
+      .reduce((sum, e) => sum + e.amount, 0);
     
-    // For admin view, we allow adding expenses even if driverId doesn't match exactly
-    // The expense will be associated with the driver being viewed
-    if (selectedTrip.driverId && selectedTrip.driverId !== driverId) {
-      console.warn('Trip driverId does not match viewed driverId, but allowing admin to add expense');
+    // Calculate grand total by converting to primary currency
+    const cadInPrimary = convertCurrency(cadTotal, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
+    const usdInPrimary = convertCurrency(usdTotal, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
+    const grandTotal = cadInPrimary + usdInPrimary;
+    
+    return { cad: cadTotal, usd: usdTotal, grandTotal };
+  };
+
+  const handleSaveExpense = async () => {
+    if (!driverId) {
+      toast({
+        title: "Error",
+        description: "Missing driver information.",
+        variant: "destructive",
+      });
+      return;
     }
 
     if (!expenseForm.description || !expenseForm.amount || !expenseForm.category) {
@@ -230,40 +248,72 @@ export default function DriverDashboardViewPage() {
     }
 
     try {
-      // Import createTransaction from database
-      const { createTransaction } = await import('@/lib/supabase/database');
-      
-      const newExpense = await createTransaction({
-        type: 'expense',
-        description: expenseForm.description,
-        amount: parseFloat(expenseForm.amount),
-        originalCurrency: expenseForm.currency,
-        category: expenseForm.category,
-        unitId: expenseForm.unitId || undefined,
-          tripId: (expenseForm.tripId && expenseForm.tripId !== 'none' ? expenseForm.tripId : selectedTripId) || undefined,
-        vendorName: expenseForm.vendorName || undefined,
-        notes: expenseForm.notes || undefined,
-        date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
-        driverId: driverId,
-        receiptUrl: expenseForm.receiptUrl || undefined,
-      });
+      if (editingExpense) {
+        // Update existing expense
+        const { updateTransaction } = await import('@/lib/supabase/database');
+        
+        const updatedExpense = await updateTransaction(editingExpense.id, {
+          description: expenseForm.description,
+          amount: parseFloat(expenseForm.amount),
+          originalCurrency: expenseForm.currency,
+          category: expenseForm.category,
+          unitId: expenseForm.unitId || undefined,
+          tripId: expenseForm.tripId && expenseForm.tripId !== 'none' ? expenseForm.tripId : undefined,
+          vendorName: expenseForm.vendorName || undefined,
+          notes: expenseForm.notes || undefined,
+          date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
+          receiptUrl: expenseForm.receiptUrl || undefined,
+        });
 
-      if (!newExpense) {
-        throw new Error('Failed to create expense');
+        if (!updatedExpense) {
+          throw new Error('Failed to update expense');
+        }
+
+        toast({
+          title: "Expense Updated",
+          description: "Expense has been updated successfully.",
+        });
+      } else {
+        // Create new expense
+        const { createTransaction } = await import('@/lib/supabase/database');
+        
+        const tripId = expenseForm.tripId && expenseForm.tripId !== 'none' 
+          ? expenseForm.tripId 
+          : selectedTripId || undefined;
+        
+        const newExpense = await createTransaction({
+          type: 'expense',
+          description: expenseForm.description,
+          amount: parseFloat(expenseForm.amount),
+          originalCurrency: expenseForm.currency,
+          category: expenseForm.category,
+          unitId: expenseForm.unitId || undefined,
+          tripId: tripId,
+          vendorName: expenseForm.vendorName || undefined,
+          notes: expenseForm.notes || undefined,
+          date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
+          driverId: driverId,
+          receiptUrl: expenseForm.receiptUrl || undefined,
+        });
+
+        if (!newExpense) {
+          throw new Error('Failed to create expense');
+        }
+
+        toast({
+          title: "Expense Added",
+          description: "Expense has been recorded successfully.",
+        });
       }
 
-      // Reload transactions to ensure we have the latest data from database
-      const driverTransactions = await getTransactionsByDriver(driverId);
-      setTransactions(driverTransactions);
+      // Reload transactions and trips
+      const [driverTransactions, driverTrips] = await Promise.all([
+        getTransactionsByDriver(driverId),
+        getTripsByDriver(driverId),
+      ]);
       
-      // Reload trips to refresh expense counts
-      const driverTrips = await getTripsByDriver(driverId);
+      setTransactions(driverTransactions);
       setTrips(driverTrips);
-
-      toast({
-        title: "Expense Added",
-        description: "Expense has been recorded successfully.",
-      });
 
       // Reset form
       setExpenseForm({
@@ -280,40 +330,56 @@ export default function DriverDashboardViewPage() {
       });
       setExpenseDialogOpen(false);
       setSelectedTripId(null);
+      setEditingExpense(null);
     } catch (error) {
-      console.error('Error adding expense:', error);
+      console.error('Error saving expense:', error);
       toast({
         title: "Error",
-        description: "Failed to add expense. Please try again.",
+        description: editingExpense ? "Failed to update expense. Please try again." : "Failed to add expense. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const openExpenseDialog = (tripId: string) => {
-    console.log('Opening expense dialog for trip:', tripId);
-    const trip = trips.find(t => t.id === tripId);
-    if (!trip) {
-      console.error('Trip not found:', tripId);
-      toast({
-        title: "Error",
-        description: "Trip not found.",
-        variant: "destructive",
+  const openExpenseDialog = (tripId?: string, expense?: Transaction) => {
+    if (expense) {
+      // Editing existing expense
+      setEditingExpense(expense);
+      setSelectedTripId(expense.tripId || tripId || null);
+      setExpenseForm({
+        unitId: expense.unitId || '',
+        tripId: expense.tripId || '',
+        description: expense.description,
+        amount: expense.amount.toString(),
+        category: expense.category,
+        currency: expense.originalCurrency,
+        vendorName: expense.vendorName || '',
+        date: expense.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+        notes: expense.notes || '',
+        receiptUrl: expense.receiptUrl || '',
       });
-      return;
+    } else {
+      // Adding new expense
+      setEditingExpense(null);
+      const trip = tripId ? trips.find(t => t.id === tripId) : null;
+      setSelectedTripId(tripId || null);
+      setExpenseForm({
+        unitId: trip?.unitId || '',
+        tripId: tripId || '',
+        description: '',
+        amount: '',
+        category: '',
+        currency: 'CAD',
+        vendorName: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        notes: '',
+        receiptUrl: '',
+      });
     }
-    
-    console.log('Trip found, opening dialog. Trip driverId:', trip.driverId, 'Viewing driverId:', driverId);
-    
-    // For admin view, we allow adding expenses even if driverId doesn't match
-    // (admin can add expenses on behalf of the driver)
-    // But we'll validate on submit
-    setSelectedTripId(tripId);
     setExpenseDialogOpen(true);
-    console.log('Dialog state set to open');
   };
 
-  // Calculate totals separately by currency
+  // Calculate totals separately by currency (for all expenses)
   const expenses = transactions.filter(t => t.type === 'expense');
   const cadTotal = expenses
     .filter(t => t.originalCurrency === 'CAD')
@@ -323,9 +389,6 @@ export default function DriverDashboardViewPage() {
     .reduce((sum, t) => sum + t.amount, 0);
   
   // Calculate grand total by converting to primary currency
-  const primaryCurrency = getPrimaryCurrency();
-  const cadToUsdRate = getCADToUSDRate();
-  const usdToCadRate = getUSDToCADRate();
   const cadInPrimary = convertCurrency(cadTotal, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
   const usdInPrimary = convertCurrency(usdTotal, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
   const grandTotal = cadInPrimary + usdInPrimary;
@@ -438,22 +501,13 @@ export default function DriverDashboardViewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-blue-700 dark:text-blue-400 font-medium">CAD:</span>
-                <span className="text-lg sm:text-xl font-bold text-blue-700 dark:text-blue-400">{formatCurrency(cadTotal, 'CAD')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-green-700 dark:text-green-400 font-medium">USD:</span>
-                <span className="text-lg sm:text-xl font-bold text-green-700 dark:text-green-400">{formatCurrency(usdTotal, 'USD')}</span>
-              </div>
-              <div className="pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold">Grand Total:</span>
-                  <span className="text-2xl sm:text-3xl font-bold text-red-600">{formatCurrency(grandTotal, primaryCurrency)}</span>
-                </div>
-              </div>
-            </div>
+            <GrandTotalDisplay
+              cadAmount={cadTotal}
+              usdAmount={usdTotal}
+              primaryCurrency={primaryCurrency}
+              cadToUsdRate={cadToUsdRate}
+              usdToCadRate={usdToCadRate}
+            />
           </CardContent>
         </Card>
       </div>
@@ -636,7 +690,7 @@ export default function DriverDashboardViewPage() {
               {ongoingTrips.map((trip) => {
                 const expenses = tripExpenses[trip.id] || [];
                 const isExpanded = expandedTripId === trip.id;
-                const totalExpensesAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totals = getTripTotalExpenses(trip.id);
                 return (
                   <Card key={trip.id} className={`overflow-hidden border-2 transition-all duration-200 ${isExpanded ? 'border-primary/50 shadow-lg' : 'hover:border-primary/30 hover:shadow-md'}`}>
                     <div 
@@ -705,23 +759,26 @@ export default function DriverDashboardViewPage() {
                                   
                                   <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
                                     <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    <div className="min-w-0">
-                                      <div className="text-xs text-muted-foreground">Distance</div>
-                                      <div className="text-sm font-medium">
-                                        {trip.distance ? trip.distance.toLocaleString() : '0'} mi
-                                      </div>
+                                    <div className="flex-1 min-w-0">
+                                      <DistanceDisplay 
+                                        distance={trip.distance || 0}
+                                        variant="default"
+                                        showLabel={true}
+                                      />
                                     </div>
                                   </div>
 
                                   {expenses.length > 0 && (
-                                    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30">
-                                      <DollarSign className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
-                                      <div className="min-w-0">
-                                        <div className="text-xs text-red-600 dark:text-red-400">Total Expenses</div>
-                                        <div className="text-sm font-semibold text-red-600 dark:text-red-400">
-                                          {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
-                                        </div>
-                                      </div>
+                                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/50 border border-border/50">
+                                      <div className="text-xs text-foreground font-semibold">Total Expenses</div>
+                                      <GrandTotalDisplay
+                                        cadAmount={totals.cad}
+                                        usdAmount={totals.usd}
+                                        primaryCurrency={primaryCurrency}
+                                        cadToUsdRate={cadToUsdRate}
+                                        usdToCadRate={usdToCadRate}
+                                        variant="compact"
+                                      />
                                     </div>
                                   )}
                                 </div>
@@ -781,38 +838,47 @@ export default function DriverDashboardViewPage() {
                           <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                               <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                  <span className="text-blue-700 dark:text-blue-400 font-bold">CAD</span>
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <DollarSign className="h-4 w-4 text-foreground" />
                                 </div>
-                                <span className="text-blue-700 dark:text-blue-400">Expenses</span>
+                                <span className="text-foreground">CAD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                 {expenses.filter(e => e.originalCurrency === 'CAD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} CAD
                               </Badge>
                             </div>
                             <div className="overflow-x-auto">
                               <Table>
                                 <TableHeader>
-                                  <TableRow className="bg-blue-50/50 dark:bg-blue-950/20">
+                                  <TableRow className="bg-muted/50">
                                     <TableHead className="font-semibold">Description</TableHead>
                                     <TableHead className="font-semibold">Category</TableHead>
                                     <TableHead className="font-semibold">Date</TableHead>
                                     <TableHead className="text-right font-semibold">Amount</TableHead>
                                     <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {expenses
                                     .filter(e => e.originalCurrency === 'CAD')
                                     .map((expense) => (
-                                      <TableRow key={expense.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-950/10">
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
                                         <TableCell className="font-medium">{expense.description}</TableCell>
                                         <TableCell>
                                           <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
                                         </TableCell>
                                         <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
-                                        <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                          -{expense.amount.toFixed(2)} CAD
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
@@ -828,6 +894,19 @@ export default function DriverDashboardViewPage() {
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
                                         </TableCell>
                                       </TableRow>
                                     ))}
@@ -842,38 +921,47 @@ export default function DriverDashboardViewPage() {
                           <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                               <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                  <span className="text-green-700 dark:text-green-400 font-bold">USD</span>
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <DollarSign className="h-4 w-4 text-foreground" />
                                 </div>
-                                <span className="text-green-700 dark:text-green-400">Expenses</span>
+                                <span className="text-foreground">USD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                 {expenses.filter(e => e.originalCurrency === 'USD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} USD
                               </Badge>
                             </div>
                             <div className="overflow-x-auto">
                               <Table>
                                 <TableHeader>
-                                  <TableRow className="bg-green-50/50 dark:bg-green-950/20">
+                                  <TableRow className="bg-muted/50">
                                     <TableHead className="font-semibold">Description</TableHead>
                                     <TableHead className="font-semibold">Category</TableHead>
                                     <TableHead className="font-semibold">Date</TableHead>
                                     <TableHead className="text-right font-semibold">Amount</TableHead>
                                     <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {expenses
                                     .filter(e => e.originalCurrency === 'USD')
                                     .map((expense) => (
-                                      <TableRow key={expense.id} className="hover:bg-green-50/30 dark:hover:bg-green-950/10">
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
                                         <TableCell className="font-medium">{expense.description}</TableCell>
                                         <TableCell>
                                           <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
                                         </TableCell>
                                         <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
-                                        <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                          -{expense.amount.toFixed(2)} USD
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
@@ -890,10 +978,45 @@ export default function DriverDashboardViewPage() {
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
                                         </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
                                       </TableRow>
                                     ))}
                                 </TableBody>
                               </Table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grand Total */}
+                        {expenses.length > 0 && (
+                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-muted/80 to-muted/50 border-border/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <DollarSign className="h-5 w-5 text-foreground" />
+                                </div>
+                                <span className="text-foreground">Grand Total</span>
+                              </h5>
+                              <GrandTotalDisplay
+                                cadAmount={getTripTotalExpenses(trip.id).cad}
+                                usdAmount={getTripTotalExpenses(trip.id).usd}
+                                primaryCurrency={primaryCurrency}
+                                cadToUsdRate={cadToUsdRate}
+                                usdToCadRate={usdToCadRate}
+                                variant="compact"
+                              />
                             </div>
                           </div>
                         )}
@@ -949,7 +1072,13 @@ export default function DriverDashboardViewPage() {
                           <span className="font-medium">{trip.destination}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{trip.distance.toLocaleString()} mi</TableCell>
+                      <TableCell>
+                        <DistanceDisplay 
+                          distance={trip.distance || 0}
+                          variant="compact"
+                          showLabel={false}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -973,56 +1102,368 @@ export default function DriverDashboardViewPage() {
 
       {/* Completed Trips */}
       {completedTrips.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-green-5 via-green-10 to-green-5 border-b">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <Package className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
               Completed Trips ({completedTrips.length})
             </CardTitle>
-            <CardDescription>Past completed trips</CardDescription>
+            <CardDescription className="mt-2">Past completed trips - click to view details and expenses</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Trip Name</TableHead>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Distance</TableHead>
-                    <TableHead>Completed Date</TableHead>
-                    <TableHead>Cargo</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {completedTrips.map((trip) => (
-                    <TableRow key={trip.id}>
-                      <TableCell className="font-medium">{trip.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-medium">{trip.origin}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="font-medium">{trip.destination}</span>
+          <CardContent className="p-4 sm:p-6">
+            <div className="space-y-4">
+              {completedTrips.map((trip) => {
+                const expenses = tripExpenses[trip.id] || [];
+                const isExpanded = expandedTripId === trip.id;
+                const totals = getTripTotalExpenses(trip.id);
+                return (
+                  <Card key={trip.id} className={`overflow-hidden border-2 transition-all duration-200 ${isExpanded ? 'border-green-500/50 shadow-lg' : 'hover:border-green-500/30 hover:shadow-md'}`}>
+                    <div 
+                      className="cursor-pointer"
+                      onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                    >
+                      <div className="p-4 sm:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
+                        <div className="flex flex-col gap-4">
+                          {/* Header Row */}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <ChevronRight className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-bold text-lg sm:text-xl truncate text-foreground mb-1">
+                                    {trip.name || 'Unnamed Trip'}
+                                  </h3>
+                                  <Badge variant="outline" className="bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 h-6 sm:h-7">
+                                    Completed
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Route Information */}
+                              <div className="ml-[52px] space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                  <div className="flex items-center gap-2 min-w-0 p-2 rounded-lg bg-background/60 border border-border/50">
+                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <MapPin className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs text-muted-foreground mb-0.5">Route</div>
+                                      <div className="flex items-center gap-2 text-sm font-semibold">
+                                        <span className="truncate">{trip.origin || 'Origin TBD'}</span>
+                                        <span className="text-primary flex-shrink-0">→</span>
+                                        <span className="truncate">{trip.destination || 'Destination TBD'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Details Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
+                                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs text-muted-foreground">Completed Date</div>
+                                      <div className="text-sm font-medium truncate">
+                                        {trip.endDate ? format(new Date(trip.endDate), 'MMM d, yyyy') : 'Date TBD'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
+                                    <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <DistanceDisplay 
+                                        distance={trip.distance || 0}
+                                        variant="default"
+                                        showLabel={true}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {expenses.length > 0 && (
+                                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/50 border border-border/50">
+                                      <div className="text-xs text-foreground font-semibold">Total Expenses</div>
+                                      <GrandTotalDisplay
+                                        cadAmount={totals.cad}
+                                        usdAmount={totals.usd}
+                                        primaryCurrency={primaryCurrency}
+                                        cadToUsdRate={cadToUsdRate}
+                                        usdToCadRate={usdToCadRate}
+                                        variant="compact"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Cargo Details */}
+                                {trip.cargoDetails && (
+                                  <div className="ml-0 p-2 rounded-lg bg-background/60 border border-border/50">
+                                    <div className="text-xs text-muted-foreground mb-1">Cargo Details</div>
+                                    <div className="text-sm text-foreground line-clamp-2">{trip.cargoDetails}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openExpenseDialog(trip.id);
+                                }}
+                                className="whitespace-nowrap shadow-sm bg-green-600 hover:bg-green-700"
+                              >
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">Add Expense</span>
+                                <span className="sm:hidden">Add</span>
+                              </Button>
+                              {expenses.length > 0 && (
+                                <div className="text-center">
+                                  <Badge variant="outline" className="text-xs">
+                                    {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>{trip.distance.toLocaleString()} mi</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {format(new Date(trip.endDate), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                    
+                    {isExpanded && (
+                      <div className="p-4 sm:p-6 border-t bg-muted/20 space-y-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-bold text-lg sm:text-xl flex items-center gap-2">
+                            <DollarSign className="h-5 w-5 text-primary" />
+                            Trip Expenses
+                          </h4>
+                          <Badge variant="outline" className="text-sm">
+                            {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+                          </Badge>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {trip.cargoDetails || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">Completed</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        
+                        {/* CAD Expenses */}
+                        {expenses.filter(e => e.originalCurrency === 'CAD').length > 0 && (
+                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">CAD Expenses</span>
+                              </h5>
+                              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-sm font-semibold px-3 py-1">
+                                {totals.cad.toFixed(2)} CAD
+                              </Badge>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/50">
+                                    <TableHead className="font-semibold">Description</TableHead>
+                                    <TableHead className="font-semibold">Category</TableHead>
+                                    <TableHead className="font-semibold">Date</TableHead>
+                                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                                    <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {expenses
+                                    .filter(e => e.originalCurrency === 'CAD')
+                                    .map((expense) => (
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
+                                        <TableCell className="font-medium">{expense.description}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.receiptUrl ? (
+                                            <a
+                                              href={expense.receiptUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
+                                            >
+                                              <Receipt className="h-4 w-4" />
+                                              View
+                                            </a>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* USD Expenses */}
+                        {expenses.filter(e => e.originalCurrency === 'USD').length > 0 && (
+                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">USD Expenses</span>
+                              </h5>
+                              <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-sm font-semibold px-3 py-1">
+                                {totals.usd.toFixed(2)} USD
+                              </Badge>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/50">
+                                    <TableHead className="font-semibold">Description</TableHead>
+                                    <TableHead className="font-semibold">Category</TableHead>
+                                    <TableHead className="font-semibold">Date</TableHead>
+                                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                                    <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {expenses
+                                    .filter(e => e.originalCurrency === 'USD')
+                                    .map((expense) => (
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
+                                        <TableCell className="font-medium">{expense.description}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.receiptUrl ? (
+                                            <a
+                                              href={expense.receiptUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
+                                            >
+                                              <Receipt className="h-4 w-4" />
+                                              View
+                                            </a>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grand Total */}
+                        {expenses.length > 0 && (
+                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-red-50/80 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                                  <DollarSign className="h-5 w-5 text-red-700 dark:text-red-400" />
+                                </div>
+                                <span className="text-red-700 dark:text-red-400">Grand Total</span>
+                              </h5>
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-3">
+                                  {totals.cad > 0 && (
+                                    <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                                      {formatCurrency(totals.cad, 'CAD')}
+                                    </span>
+                                  )}
+                                  {totals.cad > 0 && totals.usd > 0 && (
+                                    <span className="text-muted-foreground">+</span>
+                                  )}
+                                  {totals.usd > 0 && (
+                                    <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                      {formatCurrency(totals.usd, 'USD')}
+                                    </span>
+                                  )}
+                                </div>
+                                <Badge variant="outline" className="bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700 text-base font-bold px-4 py-1.5">
+                                  {formatCurrency(totals.grandTotal, primaryCurrency)}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {expenses.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <DollarSign className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No expenses recorded for this trip yet.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1066,15 +1507,16 @@ export default function DriverDashboardViewPage() {
                           <Badge variant="outline">{transaction.category}</Badge>
                         </TableCell>
                         <TableCell>{format(new Date(transaction.date), 'MMM d, yyyy')}</TableCell>
-                        <TableCell className="text-right font-semibold text-red-600">
-                          <div className="flex flex-col items-end">
-                            <span>
-                              -{formatBothCurrencies(transaction.amount, transaction.originalCurrency).cad}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatBothCurrencies(transaction.amount, transaction.originalCurrency).usd}
-                            </span>
-                          </div>
+                        <TableCell className="text-right">
+                          <CurrencyDisplay
+                            amount={transaction.amount}
+                            originalCurrency={transaction.originalCurrency}
+                            variant="compact"
+                            showLabel={false}
+                            cadToUsdRate={cadToUsdRate}
+                            usdToCadRate={usdToCadRate}
+                            className="items-end font-semibold text-foreground"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1103,7 +1545,9 @@ export default function DriverDashboardViewPage() {
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl sm:text-2xl">Add Expense</DialogTitle>
+            <DialogTitle className="text-xl sm:text-2xl">
+              {editingExpense ? 'Edit Expense' : 'Add Expense'}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
@@ -1258,7 +1702,9 @@ export default function DriverDashboardViewPage() {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleAddExpense}>Add Expense</Button>
+            <Button onClick={handleSaveExpense}>
+              {editingExpense ? 'Update Expense' : 'Add Expense'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

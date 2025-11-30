@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MapPin, Calendar, Route, Package, FileText, Truck, User, Edit, ChevronDown, ChevronRight, Receipt, ExternalLink, Filter, ArrowUpDown, ArrowUp, ArrowDown, Clock } from "lucide-react";
+import { PlusCircle, MapPin, Calendar, Route, Package, FileText, Truck, User, Edit, ChevronDown, ChevronRight, Receipt, ExternalLink, Filter, ArrowUpDown, ArrowUp, ArrowDown, Clock, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,16 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,11 +37,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getTrips, getUnits, getDrivers, createTrip, updateTrip, getTransactions } from '@/lib/data';
+import { getTrips, getUnits, getDrivers, createTrip, updateTrip, deleteTrip, getTransactions } from '@/lib/data';
 import type { Trip, Unit, Location, Driver } from '@/lib/types';
 import { CityAutocomplete } from '@/components/ui/city-autocomplete';
 import type { CityLocation } from '@/lib/address-autocomplete';
 import { calculateDistanceMiles } from '@/lib/distance-calculator';
+import { DistanceDisplay } from '@/components/ui/distance-display';
+import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
 import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -69,6 +81,8 @@ function TripsPageContent() {
   const [status, setStatus] = useState<'upcoming' | 'ongoing' | 'completed'>('upcoming');
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Filter and sort states
   const [filterStartDate, setFilterStartDate] = useState('');
@@ -425,6 +439,45 @@ function TripsPageContent() {
 
     return filtered;
   }, [trips, filterStartDate, filterEndDate, statusFilter, sortBy, sortOrder]);
+
+  const handleDeleteTrip = (trip: Trip) => {
+    setTripToDelete(trip);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTrip = async () => {
+    if (!tripToDelete) return;
+
+    try {
+      const success = await deleteTrip(tripToDelete.id);
+      
+      if (success) {
+        // Reload trips after deletion
+        const data = await getTrips();
+        setTrips(data || []);
+        toast({ 
+          title: "Trip Deleted", 
+          description: `${tripToDelete.name || 'Trip'} has been permanently deleted.` 
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete trip. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error deleting trip:', error);
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred while deleting the trip.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setTripToDelete(null);
+    }
+  };
 
   const handleEditTrip = (trip: Trip) => {
     try {
@@ -1214,17 +1267,30 @@ function TripsPageContent() {
                                   {getStatus(trip)}
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditTrip(trip);
-                                }}
-                                className="flex-shrink-0"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditTrip(trip);
+                                  }}
+                                  className="flex-shrink-0 hover:bg-primary/10"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTrip(trip);
+                                  }}
+                                  className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                             
                             <div className="space-y-2 ml-6 text-sm">
@@ -1251,10 +1317,13 @@ function TripsPageContent() {
                               
                               <div className="flex items-center gap-4 flex-wrap">
                                 <div className="flex items-center gap-2">
-                                  <Route className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-muted-foreground">
-                                    {trip.distance ? trip.distance.toLocaleString() : '0'} mi
-                                  </span>
+                                  <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  <DistanceDisplay 
+                                    distance={trip.distance || 0} 
+                                    variant="inline"
+                                    showLabel={false}
+                                    className="text-muted-foreground"
+                                  />
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <User className="h-4 w-4 text-muted-foreground" />
@@ -1270,19 +1339,15 @@ function TripsPageContent() {
                                 </div>
                               </div>
                               
-                              <div className="pt-2 border-t space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-blue-700 dark:text-blue-400 font-medium">CAD:</span>
-                                  <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">{formatCurrency(totals.cad, 'CAD')}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-green-700 dark:text-green-400 font-medium">USD:</span>
-                                  <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatCurrency(totals.usd, 'USD')}</span>
-                                </div>
-                                <div className="flex items-center justify-between pt-1 border-t">
-                                  <span className="text-xs font-semibold">Grand Total:</span>
-                                  <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(grandTotal, primaryCurrency)}</span>
-                                </div>
+                              <div className="pt-2 border-t">
+                                <GrandTotalDisplay
+                                  cadAmount={totals.cad}
+                                  usdAmount={totals.usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                />
                                 {tripExpenses.length > 0 && (
                                   <div className="pt-1">
                                     <Badge variant="outline" className="text-xs">
@@ -1480,42 +1545,43 @@ function TripsPageContent() {
                           {getStatus(trip)}
                         </TableCell>
                         <TableCell className="text-right py-3 px-4">
-                          <div className="flex flex-col items-end gap-1">
-                            <span className="font-medium text-sm">{trip.distance ? trip.distance.toLocaleString() : '0'} mi</span>
-                            <span className="text-xs text-muted-foreground">
-                              {(trip.distance * 1.60934).toLocaleString('en-US', { maximumFractionDigits: 1 })} km
-                            </span>
-                          </div>
+                          <DistanceDisplay 
+                            distance={trip.distance || 0} 
+                            variant="compact"
+                            showLabel={false}
+                            className="items-end"
+                          />
                         </TableCell>
                         <TableCell className="text-right py-3 px-4">
-                          <div className="flex flex-col items-end gap-1 min-w-[120px]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-700 dark:text-blue-400 font-medium">CAD:</span>
-                              <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">{formatCurrency(totals.cad, 'CAD')}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-green-700 dark:text-green-400 font-medium">USD:</span>
-                              <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatCurrency(totals.usd, 'USD')}</span>
-                            </div>
-                            <div className="pt-1 border-t border-dashed">
-                              <span className="text-sm font-bold text-red-600 dark:text-red-400">{formatCurrency(grandTotal, primaryCurrency)}</span>
-                            </div>
-                            {tripExpenses.length > 0 && (
-                              <span className="text-xs text-muted-foreground mt-0.5">
-                                ({tripExpenses.length} expense{tripExpenses.length !== 1 ? 's' : ''})
-                              </span>
-                            )}
-                          </div>
+                          <GrandTotalDisplay
+                            cadAmount={totals.cad}
+                            usdAmount={totals.usd}
+                            primaryCurrency={getPrimaryCurrency()}
+                            cadToUsdRate={getCADToUSDRate()}
+                            usdToCadRate={getUSDToCADRate()}
+                            variant="compact"
+                            className="items-end"
+                          />
                         </TableCell>
                         <TableCell className="text-right py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditTrip(trip)}
-                            className="hover:bg-primary/10"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditTrip(trip)}
+                              className="hover:bg-primary/10"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteTrip(trip)}
+                              className="hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
@@ -1705,6 +1771,28 @@ function TripsPageContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Trip</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{tripToDelete?.name || 'this trip'}</strong>? 
+              This action cannot be undone. All expenses associated with this trip will also be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTripToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteTrip}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

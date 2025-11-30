@@ -91,13 +91,24 @@ const SidebarProvider = React.forwardRef<
     React.useEffect(() => {
       if (typeof document !== 'undefined' && openProp === undefined) {
         const cookieValue = readCookie()
+        const currentPath = window.location.pathname
+        const isAdminRoute = currentPath && !currentPath.startsWith('/driver')
         
         if (cookieValue !== null) {
-          // Cookie exists, use its value (only after hydration to avoid mismatch)
-          _setOpen(cookieValue)
+          // Cookie exists - but for admin routes, force sidebar open
+          // This ensures sidebar stays open on admin pages even if cookie says false
+          if (isAdminRoute) {
+            _setOpen(true)
+            document.cookie = `${SIDEBAR_COOKIE_NAME}=true; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+          } else {
+            // For driver routes, use cookie value
+            _setOpen(cookieValue)
+          }
         } else {
           // No cookie exists, set it to current state
-          document.cookie = `${SIDEBAR_COOKIE_NAME}=${defaultOpen}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+          const initialValue = isAdminRoute ? true : defaultOpen
+          _setOpen(initialValue)
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=${initialValue}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
         }
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,7 +260,11 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        <Sheet 
+          open={openMobile} 
+          onOpenChange={setOpenMobile}
+          {...props}
+        >
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"

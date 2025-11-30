@@ -38,6 +38,8 @@ import { useToast } from '@/hooks/use-toast';
 import { getCurrentDriver, clearDriverSession, getDriverSession } from '@/lib/driver-auth';
 import { LogOut, Receipt, PlusCircle, DollarSign, Upload, FileImage, Edit, User, Trash2, Calendar, TrendingUp, Lock, MapPin, Truck, Route, Clock, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
 import { formatBothCurrencies, convertCurrency, getPrimaryCurrency, getCADToUSDRate, getUSDToCADRate, formatCurrency } from '@/lib/currency';
+import { DistanceDisplay } from '@/components/ui/distance-display';
+import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
 import { DriverRouteGuard } from '@/components/driver-route-guard';
 
 function DriverDashboardContent() {
@@ -565,11 +567,7 @@ function DriverDashboardContent() {
     setExpenseDialogOpen(true);
   };
 
-  if (!currentDriver) {
-    return <div>Loading...</div>;
-  }
-
-  // Filter and sort driver trips
+  // Filter and sort driver trips - MUST be called before any early returns to follow Rules of Hooks
   const filteredAndSortedTrips = useMemo(() => {
     let filtered = [...driverTrips];
 
@@ -640,18 +638,25 @@ function DriverDashboardContent() {
     return filtered;
   }, [driverTrips, filterStartDate, filterEndDate, statusFilter, sortBy, sortOrder]);
 
-  const upcomingTrips = filteredAndSortedTrips.filter(t => {
-    const status = getTripStatus(t);
-    return status === 'upcoming';
-  });
-  const ongoingTrips = filteredAndSortedTrips.filter(t => {
-    const status = getTripStatus(t);
-    return status === 'ongoing';
-  });
-  const completedTrips = filteredAndSortedTrips.filter(t => {
-    const status = getTripStatus(t);
-    return status === 'completed';
-  });
+  const upcomingTrips = useMemo(() => 
+    filteredAndSortedTrips.filter(t => getTripStatus(t) === 'upcoming'),
+    [filteredAndSortedTrips]
+  );
+  
+  const ongoingTrips = useMemo(() => 
+    filteredAndSortedTrips.filter(t => getTripStatus(t) === 'ongoing'),
+    [filteredAndSortedTrips]
+  );
+  
+  const completedTrips = useMemo(() => 
+    filteredAndSortedTrips.filter(t => getTripStatus(t) === 'completed'),
+    [filteredAndSortedTrips]
+  );
+
+  // Early return check - must come AFTER all hooks
+  if (!currentDriver) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen w-full bg-background">
@@ -721,22 +726,13 @@ function DriverDashboardContent() {
                 const grandTotal = cadInPrimary + usdInPrimary;
 
                 return (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700 dark:text-blue-400 font-medium">CAD Total:</span>
-                      <span className="text-lg font-bold text-blue-700 dark:text-blue-400">{formatCurrency(allTotals.cad, 'CAD')}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-green-700 dark:text-green-400 font-medium">USD Total:</span>
-                      <span className="text-lg font-bold text-green-700 dark:text-green-400">{formatCurrency(allTotals.usd, 'USD')}</span>
-                    </div>
-                    <div className="pt-2 border-t">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">Grand Total:</span>
-                        <span className="text-2xl font-bold text-primary">{formatCurrency(grandTotal, primaryCurrency)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <GrandTotalDisplay
+                    cadAmount={allTotals.cad}
+                    usdAmount={allTotals.usd}
+                    primaryCurrency={primaryCurrency}
+                    cadToUsdRate={cadToUsdRate}
+                    usdToCadRate={usdToCadRate}
+                  />
                 );
               })()}
               <p className="text-xs text-muted-foreground mt-2">
@@ -995,14 +991,15 @@ function DriverDashboardContent() {
 
                             {/* Distance */}
                             <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                              <div className="p-2 bg-primary/10 rounded-md">
+                              <div className="p-2 bg-primary/10 rounded-md flex-shrink-0">
                                 <Route className="h-4 w-4 text-primary" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-muted-foreground mb-1">Distance</p>
-                                <p className="text-sm font-semibold text-foreground">
-                                  {trip.distance} mi
-                                </p>
+                                <DistanceDisplay 
+                                  distance={trip.distance || 0}
+                                  variant="default"
+                                  showLabel={true}
+                                />
                               </div>
                             </div>
 
@@ -1049,11 +1046,11 @@ function DriverDashboardContent() {
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                                 <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
                                   <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                    <span className="text-blue-700 dark:text-blue-400 font-bold">CAD</span>
-                                  </div>
-                                  <span className="text-blue-700 dark:text-blue-400">Expenses</span>
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">CAD Expenses</span>
                                 </h5>
-                                <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-sm font-semibold px-3 py-1">
+                                <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                   {expenses.filter(e => e.originalCurrency === 'CAD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} CAD
                                 </Badge>
                               </div>
@@ -1080,7 +1077,15 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
                                           <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                            -{expense.amount.toFixed(2)} CAD
+                                            <CurrencyDisplay
+                                              amount={expense.amount}
+                                              originalCurrency="CAD"
+                                              variant="inline"
+                                              showLabel={false}
+                                              cadToUsdRate={cadToUsdRate}
+                                              usdToCadRate={usdToCadRate}
+                                              className="font-semibold text-foreground"
+                                            />
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
@@ -1134,11 +1139,11 @@ function DriverDashboardContent() {
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                                 <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
                                   <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                    <span className="text-green-700 dark:text-green-400 font-bold">USD</span>
-                                  </div>
-                                  <span className="text-green-700 dark:text-green-400">Expenses</span>
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">USD Expenses</span>
                                 </h5>
-                                <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-sm font-semibold px-3 py-1">
+                                <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                   {expenses.filter(e => e.originalCurrency === 'USD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} USD
                                 </Badge>
                               </div>
@@ -1165,7 +1170,15 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
                                           <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                            -{expense.amount.toFixed(2)} USD
+                                            <CurrencyDisplay
+                                              amount={expense.amount}
+                                              originalCurrency="USD"
+                                              variant="inline"
+                                              showLabel={false}
+                                              cadToUsdRate={cadToUsdRate}
+                                              usdToCadRate={usdToCadRate}
+                                              className="font-semibold text-foreground"
+                                            />
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
@@ -1338,14 +1351,15 @@ function DriverDashboardContent() {
 
                           {/* Distance */}
                           <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                            <div className="p-2 bg-primary/10 rounded-md">
+                            <div className="p-2 bg-primary/10 rounded-md flex-shrink-0">
                               <Route className="h-4 w-4 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Distance</p>
-                              <p className="text-sm font-semibold text-foreground">
-                                {trip.distance} mi
-                              </p>
+                              <DistanceDisplay 
+                                distance={trip.distance || 0}
+                                variant="default"
+                                showLabel={true}
+                              />
                             </div>
                           </div>
 
@@ -1383,11 +1397,11 @@ function DriverDashboardContent() {
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                                   <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
                                     <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                      <span className="text-blue-700 dark:text-blue-400 font-bold">CAD</span>
-                                    </div>
-                                    <span className="text-blue-700 dark:text-blue-400">Expenses</span>
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">CAD Expenses</span>
                                   </h5>
-                                  <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-sm font-semibold px-3 py-1">
+                                  <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                     {expenses.filter(e => e.originalCurrency === 'CAD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} CAD
                                   </Badge>
                                 </div>
@@ -1414,7 +1428,15 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
                                           <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                            -{expense.amount.toFixed(2)} CAD
+                                            <CurrencyDisplay
+                                              amount={expense.amount}
+                                              originalCurrency="CAD"
+                                              variant="inline"
+                                              showLabel={false}
+                                              cadToUsdRate={cadToUsdRate}
+                                              usdToCadRate={usdToCadRate}
+                                              className="font-semibold text-foreground"
+                                            />
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
@@ -1468,11 +1490,11 @@ function DriverDashboardContent() {
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                                 <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
                                   <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                    <span className="text-green-700 dark:text-green-400 font-bold">USD</span>
-                                  </div>
-                                  <span className="text-green-700 dark:text-green-400">Expenses</span>
+                                  <DollarSign className="h-4 w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">USD Expenses</span>
                                 </h5>
-                                <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-sm font-semibold px-3 py-1">
+                                <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
                                   {expenses.filter(e => e.originalCurrency === 'USD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} USD
                                 </Badge>
                               </div>
@@ -1499,7 +1521,15 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
                                           <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                                            -{expense.amount.toFixed(2)} USD
+                                            <CurrencyDisplay
+                                              amount={expense.amount}
+                                              originalCurrency="USD"
+                                              variant="inline"
+                                              showLabel={false}
+                                              cadToUsdRate={cadToUsdRate}
+                                              usdToCadRate={usdToCadRate}
+                                              className="font-semibold text-foreground"
+                                            />
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (

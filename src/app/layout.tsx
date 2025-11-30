@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export const metadata: Metadata = {
-  title: 'TruckOps Tracker',
+  title: 'TruckTrack',
   description: 'Track your truck operations with ease.',
 };
 

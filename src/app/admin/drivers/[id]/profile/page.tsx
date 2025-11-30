@@ -18,6 +18,7 @@ import type { Driver, Trip, Transaction, Unit } from '@/lib/types';
 import { format } from 'date-fns';
 import { ArrowLeft, User, Mail, Phone, CreditCard, Calendar, MapPin, Package, DollarSign, FileText, TrendingDown } from 'lucide-react';
 import { formatBothCurrencies } from '@/lib/currency';
+import { DistanceDisplay } from '@/components/ui/distance-display';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DriverProfilePage() {
@@ -299,12 +300,11 @@ export default function DriverProfilePage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
-                        {trip.distance.toLocaleString()} mi
-                        <span className="text-muted-foreground ml-1">
-                          ({(trip.distance * 1.60934).toFixed(1)} km)
-                        </span>
-                      </div>
+                      <DistanceDisplay 
+                        distance={trip.distance || 0}
+                        variant="inline"
+                        showLabel={false}
+                      />
                     </TableCell>
                     <TableCell>{getStatusBadge(getTripStatus(trip))}</TableCell>
                   </TableRow>

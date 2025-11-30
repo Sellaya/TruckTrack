@@ -1,506 +1,284 @@
 'use client';
 
-import { TrendingDown, Truck, Calendar, BarChart3, Route, Package } from 'lucide-react';
-import { StatCard } from '@/components/dashboard/stat-card';
-import { getTransactions, getTrips, getUnits } from '@/lib/data';
-import { useEffect, useState, useMemo } from 'react';
-import type { Transaction, Trip, Unit } from '@/lib/types';
-import { 
-  convertCurrency, 
-  getPrimaryCurrency, 
-  getCADToUSDRate,
-  getUSDToCADRate,
-  formatCurrency
-} from '@/lib/currency';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartConfig,
-  ChartLegend,
-  ChartLegendContent
-} from '@/components/ui/chart';
-import { Bar, BarChart, Line, LineChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { format, startOfMonth, subMonths } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { 
+  Truck, 
+  Route, 
+  DollarSign, 
+  BarChart3, 
+  FileText, 
+  Shield, 
+  User, 
+  ArrowRight,
+  CheckCircle2,
+  TrendingUp,
+  MapPin,
+  Calendar,
+  Package
+} from 'lucide-react';
 
-export default function Home() {
+export default function LandingPage() {
   const router = useRouter();
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [transactionsData, tripsData, unitsData] = await Promise.all([
-          getTransactions(),
-          getTrips(),
-          getUnits(),
-        ]);
-        const expenses = (transactionsData || []).filter((t) => t.type === 'expense');
-        setTransactions(expenses);
-        setTrips(tripsData || []);
-        setUnits(unitsData || []);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  const primaryCurrency = getPrimaryCurrency();
-  const cadToUsdRate = getCADToUSDRate();
-  const usdToCadRate = getUSDToCADRate();
-
-  // Calculate total expenses this month
-  const expensesThisMonth = useMemo(() => {
-    const now = new Date();
-    const monthStart = startOfMonth(now);
-    
-    return transactions
-      .filter(t => {
-        const expenseDate = new Date(t.date);
-        return expenseDate >= monthStart;
-      })
-      .reduce((sum, t) => {
-        const converted = convertCurrency(t.amount, t.originalCurrency, primaryCurrency, cadToUsdRate, usdToCadRate);
-        return sum + converted;
-      }, 0);
-  }, [transactions, primaryCurrency, cadToUsdRate, usdToCadRate]);
-
-  // Expenses by category
-  const expensesByCategory = useMemo(() => {
-    const categoryMap: Record<string, number> = {};
-    transactions.forEach(t => {
-      const converted = convertCurrency(t.amount, t.originalCurrency, primaryCurrency, cadToUsdRate, usdToCadRate);
-      categoryMap[t.category] = (categoryMap[t.category] || 0) + converted;
-    });
-    return Object.entries(categoryMap)
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount);
-  }, [transactions, primaryCurrency, cadToUsdRate, usdToCadRate]);
-
-  // Top 5 most expensive trucks (by total expenses)
-  const topTrucks = useMemo(() => {
-    const truckExpenses: Record<string, { unit: Unit; total: number }> = {};
-    
-    units.forEach(unit => {
-      const unitTrips = trips.filter(t => t.unitId === unit.id);
-      const unitTripIds = unitTrips.map(t => t.id);
-      const unitExpenses = transactions.filter(t => t.tripId && unitTripIds.includes(t.tripId));
-      
-      const total = unitExpenses.reduce((sum, t) => {
-        const converted = convertCurrency(t.amount, t.originalCurrency, primaryCurrency, cadToUsdRate, usdToCadRate);
-        return sum + converted;
-      }, 0);
-      
-      if (total > 0) {
-        truckExpenses[unit.id] = { unit, total };
-      }
-    });
-    
-    return Object.values(truckExpenses)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-  }, [units, trips, transactions, primaryCurrency, cadToUsdRate, usdToCadRate]);
-
-  // Fuel expense trend (last 6 months)
-  const fuelTrend = useMemo(() => {
-    const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = subMonths(new Date(), i);
-      months.push({
-        month: format(monthDate, 'MMM'),
-        fullMonth: format(monthDate, 'MMMM yyyy'),
-        amount: 0,
-      });
-    }
-    
-    transactions
-      .filter(t => t.category === 'Fuel')
-      .forEach(t => {
-        const expenseDate = new Date(t.date);
-        const monthIndex = months.findIndex(m => {
-          const monthDate = subMonths(new Date(), 5 - months.indexOf(m));
-          return format(monthDate, 'MMM yyyy') === format(expenseDate, 'MMM yyyy');
-        });
-        
-        if (monthIndex >= 0) {
-          const converted = convertCurrency(t.amount, t.originalCurrency, primaryCurrency, cadToUsdRate, usdToCadRate);
-          months[monthIndex].amount += converted;
-        }
-      });
-    
-    return months;
-  }, [transactions, primaryCurrency, cadToUsdRate, usdToCadRate]);
-
-  // Count active trips
-  const activeTripsCount = useMemo(() => {
-    const now = new Date();
-    return trips.filter(t => {
-      if (t.status === 'ongoing') return true;
-      const start = new Date(t.startDate);
-      const end = new Date(t.endDate);
-      return now >= start && now <= end;
-    }).length;
-  }, [trips]);
-
-  // Total trucks count
-  const totalTrucksCount = useMemo(() => {
-    return units.length;
-  }, [units]);
-
-  // Active trips with total expense per trip
-  const activeTripsWithExpenses = useMemo(() => {
-    const activeTrips = trips.filter(t => t.status === 'ongoing' || (() => {
-      const now = new Date();
-      const start = new Date(t.startDate);
-      const end = new Date(t.endDate);
-      return now >= start && now <= end;
-    })());
-    
-    return activeTrips.map(trip => {
-      const tripExpenses = transactions.filter(t => t.tripId === trip.id);
-      const total = tripExpenses.reduce((sum, t) => {
-        const converted = convertCurrency(t.amount, t.originalCurrency, primaryCurrency, cadToUsdRate, usdToCadRate);
-        return sum + converted;
-      }, 0);
-      
-      const unit = units.find(u => u.id === trip.unitId);
-      
-      return {
-        trip,
-        unit,
-        totalExpenses: total,
-        expenseCount: tripExpenses.length,
-      };
-    }).sort((a, b) => b.totalExpenses - a.totalExpenses);
-  }, [trips, transactions, units, primaryCurrency, cadToUsdRate, usdToCadRate]);
-
-  // Format with both currencies
-  const formatDual = (value: number) => {
-    const usdValue = primaryCurrency === 'USD' ? value : convertCurrency(value, 'CAD', 'USD', cadToUsdRate, usdToCadRate);
-    const cadValue = primaryCurrency === 'CAD' ? value : convertCurrency(value, 'USD', 'CAD', cadToUsdRate, usdToCadRate);
-    return {
-      primary: formatCurrency(value, primaryCurrency),
-      secondary: primaryCurrency === 'USD' 
-        ? formatCurrency(cadValue, 'CAD')
-        : formatCurrency(usdValue, 'USD'),
-    };
-  };
-
-  // Chart colors
-  const CHART_COLORS = [
-    'hsl(var(--primary))',
-    'hsl(var(--accent))',
-    'hsl(142, 76%, 36%)',
-    'hsl(221, 83%, 53%)',
-    'hsl(280, 100%, 70%)',
-    'hsl(0, 84%, 60%)',
-    'hsl(38, 92%, 50%)',
+  const features = [
+    {
+      icon: Route,
+      title: 'Trip Logging',
+      description: 'Log all relevant information for each trip with detailed route tracking and scheduling.',
+    },
+    {
+      icon: DollarSign,
+      title: 'Expense Tracking',
+      description: 'Track fuel, maintenance, and operating expenses with multi-currency support (CAD & USD).',
+    },
+    {
+      icon: TrendingUp,
+      title: 'Income Tracking',
+      description: 'Log income from each delivery and calculate profit per trip, day, week, or month.',
+    },
+    {
+      icon: BarChart3,
+      title: 'Performance Dashboard',
+      description: 'Visualize key metrics including revenue, expenses, and profit margins in real-time.',
+    },
+    {
+      icon: FileText,
+      title: 'Report Generation',
+      description: 'Generate and export detailed reports for accounting with customizable date ranges.',
+    },
+    {
+      icon: Package,
+      title: 'Fleet Management',
+      description: 'Manage your truck units, drivers, and assignments all in one place.',
+    },
   ];
 
-  const categoryChartConfig = {
-    amount: {
-      label: 'Amount',
-      color: 'hsl(var(--primary))',
-    },
-  } satisfies ChartConfig;
-
-  const fuelTrendConfig = {
-    amount: {
-      label: 'Fuel Expenses',
-      color: 'hsl(var(--primary))',
-    },
-  } satisfies ChartConfig;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Loading dashboard...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6">
-      {/* Active Trips and Total Trucks */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <StatCard
-          title="Active Trips"
-          value={activeTripsCount.toString()}
-          icon={Route}
-          description="currently running"
-        />
-        <StatCard
-          title="Total Trucks"
-          value={totalTrucksCount.toString()}
-          icon={Package}
-          description="in fleet"
-        />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background">
+      {/* Navigation Bar */}
+      <nav className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <div className="bg-primary p-2 rounded-lg group-hover:bg-primary/90 transition-colors duration-300">
+                <Truck className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <h1 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">TruckTrack</h1>
+            </div>
+          </div>
+        </div>
+      </nav>
 
-      {/* Total Expenses This Month - CAD, USD, and Grand Total */}
-      <div className="grid gap-4 md:grid-cols-1">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Total Expenses This Month
-            </CardTitle>
-            <CardDescription>Expenses for {format(new Date(), 'MMMM yyyy')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const now = new Date();
-              const monthStart = startOfMonth(now);
-              
-              const expensesThisMonth = transactions.filter(t => {
-                const expenseDate = new Date(t.date);
-                return expenseDate >= monthStart;
-              });
+      {/* Hero Section */}
+      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 lg:pt-16 pb-8 sm:pb-12 lg:pb-16">
+        {/* Decorative Background Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/5 rounded-full blur-3xl"></div>
+        </div>
 
-              const cadTotal = expensesThisMonth
-                .filter(t => t.originalCurrency === 'CAD')
-                .reduce((sum, t) => sum + t.amount, 0);
-              
-              const usdTotal = expensesThisMonth
-                .filter(t => t.originalCurrency === 'USD')
-                .reduce((sum, t) => sum + t.amount, 0);
+        <div className="container mx-auto max-w-7xl relative z-10">
+          <div className="text-center mb-8 sm:mb-10">
+            <div className="inline-flex items-center justify-center mb-4 sm:mb-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-2xl animate-pulse"></div>
+                <div className="relative bg-gradient-to-br from-primary to-primary/90 p-5 sm:p-6 rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
+                  <Truck className="h-14 w-14 sm:h-16 sm:w-16 text-primary-foreground" />
+                </div>
+              </div>
+            </div>
+            
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-3 sm:mb-4 tracking-tight">
+              TruckTrack
+            </h1>
+            <p className="text-lg sm:text-xl lg:text-2xl text-muted-foreground mb-4 sm:mb-5 max-w-3xl mx-auto font-medium">
+              Comprehensive Fleet Management & Expense Tracking System
+            </p>
+            <p className="text-base sm:text-lg text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto">
+              Streamline your trucking operations with powerful tools for trip logging, expense tracking, profit calculation, and detailed reporting.
+            </p>
 
-              // Calculate grand total by converting to primary currency
-              const cadInPrimary = convertCurrency(cadTotal, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
-              const usdInPrimary = convertCurrency(usdTotal, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
-              const grandTotal = cadInPrimary + usdInPrimary;
+            {/* Login Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <Button
+                size="lg"
+                onClick={() => router.push('/admin/login')}
+                className="w-full sm:w-auto h-12 sm:h-14 px-8 sm:px-10 text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                <Shield className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+                Login as Admin
+                <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => router.push('/driver/login')}
+                className="w-full sm:w-auto h-12 sm:h-14 px-8 sm:px-10 text-base sm:text-lg font-semibold border-2 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                <User className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+                Login as Driver
+                <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
+      {/* Features Section */}
+      <section className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-14 bg-muted/20">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-8 sm:mb-10">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-3 sm:mb-4">
+              Powerful Features
+            </h2>
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
+              Everything you need to manage your fleet operations efficiently
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
               return (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <span className="text-sm font-medium text-blue-700 dark:text-blue-400">CAD Total:</span>
-                    <span className="text-xl font-bold text-blue-700 dark:text-blue-400">{formatCurrency(cadTotal, 'CAD')}</span>
+                <div
+                  key={index}
+                  className="group p-5 sm:p-6 rounded-2xl border-2 border-border bg-card hover:bg-primary/5 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                >
+                  <div className="mb-4">
+                    <div className="inline-flex p-3 rounded-xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
+                      <Icon className="h-6 w-6 sm:h-7 sm:w-7 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                    <span className="text-sm font-medium text-green-700 dark:text-green-400">USD Total:</span>
-                    <span className="text-xl font-bold text-green-700 dark:text-green-400">{formatCurrency(usdTotal, 'USD')}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20">
-                    <span className="text-sm font-semibold">Grand Total:</span>
-                    <span className="text-2xl font-bold text-primary">{formatCurrency(grandTotal, primaryCurrency)}</span>
-                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-3 group-hover:text-primary transition-colors duration-300">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                    {feature.description}
+                  </p>
                 </div>
               );
-            })()}
-          </CardContent>
-        </Card>
-      </div>
+            })}
+          </div>
+        </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Expenses by Category - Bar Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Expenses by Category</CardTitle>
-            <CardDescription>Breakdown of expenses by category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {expensesByCategory.length > 0 ? (
-              <ChartContainer config={categoryChartConfig} className="min-h-[300px] w-full">
-                <BarChart data={expensesByCategory}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="category"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => formatCurrency(value, primaryCurrency)}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent 
-                      indicator="dot"
-                      formatter={(value) => formatCurrency(value as number, primaryCurrency)}
-                    />}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Bar dataKey="amount" fill="var(--color-amount)" radius={4} />
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                No expense data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Fuel Expense Trend - Line Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Fuel Expense Trend</CardTitle>
-            <CardDescription>Last 6 months of fuel expenses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {fuelTrend.some(m => m.amount > 0) ? (
-              <ChartContainer config={fuelTrendConfig} className="min-h-[300px] w-full">
-                <LineChart data={fuelTrend}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => formatCurrency(value, primaryCurrency)}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent 
-                      indicator="dot"
-                      formatter={(value) => formatCurrency(value as number, primaryCurrency)}
-                      labelFormatter={(label, payload) => {
-                        if (payload && payload[0]) {
-                          return payload[0].payload.fullMonth;
-                        }
-                        return label;
-                      }}
-                    />}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="amount" 
-                    stroke="var(--color-amount)" 
-                    strokeWidth={2}
-                    dot={{ fill: 'var(--color-amount)', r: 4 }}
-                  />
-                </LineChart>
-              </ChartContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                No fuel expense data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Top 5 Most Expensive Trucks */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
-              Top 5 Most Expensive Trucks
-            </CardTitle>
-            <CardDescription>Trucks with highest total expenses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topTrucks.length > 0 ? (
-              <div className="space-y-4">
-                {topTrucks.map((item, index) => (
-                  <div key={item.unit.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push(`/units/${item.unit.id}/dashboard`)}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.unit.name}</p>
-                        <p className="text-sm text-muted-foreground">{item.unit.licensePlate}</p>
-                      </div>
+      {/* Key Benefits Section */}
+      <section className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-14">
+        <div className="container mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
+            <div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-5 sm:mb-6">
+                Why Choose TruckTrack?
+              </h2>
+              <div className="space-y-3 sm:space-y-4">
+                {[
+                  'Multi-currency expense tracking (CAD & USD)',
+                  'Real-time dashboard with key performance metrics',
+                  'Comprehensive trip logging with route tracking',
+                  'Automated profit calculation and reporting',
+                  'Detailed reports exportable for accounting',
+                  'User-friendly interface for both admins and drivers',
+                ].map((benefit, index) => (
+                  <div key={index} className="flex items-start gap-3 sm:gap-4 group">
+                    <div className="p-1 rounded-lg bg-primary/10 group-hover:bg-primary transition-colors duration-300 flex-shrink-0 mt-0.5">
+                      <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-red-600">
-                        {formatCurrency(item.total, primaryCurrency)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {primaryCurrency === 'CAD' 
-                          ? formatCurrency(convertCurrency(item.total, 'CAD', 'USD', cadToUsdRate, usdToCadRate), 'USD')
-                          : formatCurrency(convertCurrency(item.total, 'USD', 'CAD', cadToUsdRate, usdToCadRate), 'CAD')}
-                      </p>
-                    </div>
+                    <p className="text-base sm:text-lg text-muted-foreground group-hover:text-foreground transition-colors duration-300 pt-0.5">{benefit}</p>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                No truck expense data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Active Trips & Total Expense Per Trip */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Active Trips & Expenses
-            </CardTitle>
-            <CardDescription>Current trips with their total expenses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {activeTripsWithExpenses.length > 0 ? (
-              <div className="space-y-3">
-                {activeTripsWithExpenses.map((item) => (
-                  <div key={item.trip.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <p className="font-medium">{item.trip.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.trip.origin} → {item.trip.destination}
-                        </p>
-                        {item.unit && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Unit: {item.unit.name} ({item.unit.licensePlate})
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant={item.trip.status === 'ongoing' ? 'default' : 'outline'}>
-                        {item.trip.status === 'ongoing' ? 'Ongoing' : 'Active'}
-                      </Badge>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-3xl blur-3xl"></div>
+              <div className="relative p-6 sm:p-8 lg:p-10 rounded-3xl border-2 border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                <div className="space-y-5 sm:space-y-6">
+                  <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
+                      <MapPin className="h-6 w-6 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
                     </div>
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <span className="text-sm text-muted-foreground">
-                        {item.expenseCount} expense{item.expenseCount !== 1 ? 's' : ''}
-                      </span>
-                      <span className="font-semibold text-red-600">
-                        {formatCurrency(item.totalExpenses, primaryCurrency)}
-                      </span>
+                    <div>
+                      <h3 className="font-semibold text-lg sm:text-xl text-foreground group-hover:text-primary transition-colors duration-300">Route Management</h3>
+                      <p className="text-sm sm:text-base text-muted-foreground">Track origins and destinations with precise location data</p>
                     </div>
                   </div>
-                ))}
+                  <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
+                      <Calendar className="h-6 w-6 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg sm:text-xl text-foreground group-hover:text-primary transition-colors duration-300">Trip Scheduling</h3>
+                      <p className="text-sm sm:text-base text-muted-foreground">Manage upcoming, ongoing, and completed trips efficiently</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
+                      <DollarSign className="h-6 w-6 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg sm:text-xl text-foreground group-hover:text-primary transition-colors duration-300">Financial Insights</h3>
+                      <p className="text-sm sm:text-base text-muted-foreground">Get comprehensive financial insights and profit analysis</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                No active trips
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-14 bg-gradient-to-br from-primary/5 via-primary/3 to-accent/5">
+        <div className="container mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-3 sm:mb-4">
+            Ready to Get Started?
+          </h2>
+          <p className="text-lg sm:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto">
+            Choose your login option below to access your dashboard and start managing your fleet operations.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <Button
+              size="lg"
+              onClick={() => router.push('/admin/login')}
+              className="w-full sm:w-auto h-12 sm:h-14 px-8 sm:px-10 text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 active:scale-95"
+            >
+              <Shield className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+              Admin Login
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => router.push('/driver/login')}
+              className="w-full sm:w-auto h-12 sm:h-14 px-8 sm:px-10 text-base sm:text-lg font-semibold border-2 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-300 transform hover:scale-105 active:scale-95"
+            >
+              <User className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+              Driver Login
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="w-full border-t bg-background py-6 sm:py-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <p className="text-sm sm:text-base text-muted-foreground mb-2">
+              Product by{' '}
+              <a
+                href="https://instagram.com/sellayadigital"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-foreground hover:text-primary hover:underline transition-all duration-300"
+              >
+                Sellaya
+              </a>
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              © {new Date().getFullYear()} TruckTrack. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

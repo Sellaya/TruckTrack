@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { loginDriver } from '@/lib/driver-auth';
-import { Truck, Mail, Lock, Loader2 } from 'lucide-react';
+import { loginAdmin } from '@/lib/admin-auth';
+import { Shield, Mail, Lock, Loader2 } from 'lucide-react';
 
-export default function DriverLoginPage() {
+export default function AdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
@@ -32,14 +32,14 @@ export default function DriverLoginPage() {
     setIsLoading(true);
 
     try {
-      const result = await loginDriver(email, password);
+      const result = await loginAdmin(email, password);
 
       if (result.success) {
         toast({
           title: "Login Successful",
-          description: `Welcome back, ${result.driver?.name}!`,
+          description: "Welcome to the admin dashboard!",
         });
-        router.push('/driver/dashboard');
+        router.push('/dashboard');
       } else {
         toast({
           title: "Login Failed",
@@ -74,7 +74,7 @@ export default function DriverLoginPage() {
             <div className="relative">
               <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-xl"></div>
               <div className="relative bg-gradient-to-br from-primary to-primary/90 p-4 sm:p-5 rounded-2xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
-                <Truck className="h-10 w-10 sm:h-12 sm:w-12 text-primary-foreground" />
+                <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-primary-foreground" />
               </div>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function DriverLoginPage() {
             TruckTrack
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground font-medium">
-            Driver Portal
+            Admin Portal
           </p>
         </div>
 
@@ -90,10 +90,10 @@ export default function DriverLoginPage() {
         <Card className="shadow-2xl border-2 border-border/50 bg-card/95 backdrop-blur-sm">
           <CardHeader className="space-y-3 pb-6 sm:pb-8 px-6 sm:px-8 pt-6 sm:pt-8">
             <CardTitle className="text-2xl sm:text-3xl font-bold text-center bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
-              Driver Login
+              Admin Login
             </CardTitle>
             <CardDescription className="text-center text-sm sm:text-base px-2">
-              Enter your credentials to access your dashboard
+              Enter your admin credentials to access the dashboard
             </CardDescription>
           </CardHeader>
           <CardContent className="px-6 sm:px-8 pb-6 sm:pb-8 pt-0">
@@ -108,7 +108,7 @@ export default function DriverLoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="driver@truckops.com"
+                    placeholder="admin@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value.trim())}
                     required
@@ -161,10 +161,14 @@ export default function DriverLoginPage() {
 
         {/* Footer Note */}
         <p className="text-center text-xs sm:text-sm text-muted-foreground mt-8 sm:mt-10 font-medium">
-          Need help? Contact your administrator
+          <a 
+            href="/" 
+            className="hover:underline text-primary"
+          >
+            ← Back to Home
+          </a>
         </p>
       </div>
     </div>
   );
 }
-

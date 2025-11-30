@@ -18,6 +18,7 @@ import type { Driver, Trip, Transaction, Unit } from '@/lib/types';
 import { format } from 'date-fns';
 import { ArrowLeft, User, Mail, Phone, CreditCard, Calendar, MapPin, Package, FileText, TrendingDown, BarChart3, Lock } from 'lucide-react';
 import { formatBothCurrencies } from '@/lib/currency';
+import { DistanceDisplay } from '@/components/ui/distance-display';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentDriver, getDriverSession } from '@/lib/driver-auth';
 import { DriverRouteGuard } from '@/components/driver-route-guard';
@@ -319,12 +320,11 @@ function DriverProfileContent() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="text-sm">
-                              {trip.distance.toLocaleString()} mi
-                              <span className="text-muted-foreground ml-1">
-                                ({(trip.distance * 1.60934).toFixed(1)} km)
-                              </span>
-                            </div>
+                            <DistanceDisplay 
+                              distance={trip.distance || 0}
+                              variant="inline"
+                              showLabel={false}
+                            />
                           </TableCell>
                           <TableCell>{getStatusBadge(getTripStatus(trip), trip)}</TableCell>
                         </TableRow>

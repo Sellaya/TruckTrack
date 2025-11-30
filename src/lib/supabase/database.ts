@@ -635,3 +635,22 @@ export async function deleteDriver(id: string): Promise<boolean> {
   return true
 }
 
+export async function deleteTrip(id: string): Promise<boolean> {
+  if (!supabase) {
+    console.warn('Supabase not configured')
+    return false
+  }
+
+  const { error } = await supabase
+    .from('trips')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error deleting trip:', error)
+    return false
+  }
+
+  return true
+}
+

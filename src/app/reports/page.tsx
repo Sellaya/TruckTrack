@@ -23,6 +23,7 @@ import {
   formatCurrency,
 } from '@/lib/currency';
 import { format } from 'date-fns';
+import { DistanceDisplay } from '@/components/ui/distance-display';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import {
@@ -512,9 +513,14 @@ export default function ReportsPage() {
                 </div>
                 <div className="p-4 border rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Distance</p>
-                  <p className="text-2xl font-bold">
-                    {filteredTrips.reduce((sum, trip) => sum + trip.distance, 0).toLocaleString()} mi
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <DistanceDisplay 
+                      distance={filteredTrips.reduce((sum, trip) => sum + trip.distance, 0)}
+                      variant="default"
+                      showLabel={false}
+                      className="text-2xl"
+                    />
+                  </div>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Expenses</p>

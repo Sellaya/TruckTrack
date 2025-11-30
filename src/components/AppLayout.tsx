@@ -10,10 +10,12 @@ import { Footer } from '@/components/layout/footer';
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
-  // Hide sidebar and header for driver routes
+  // Hide sidebar and header for driver routes and landing page
   const isDriverRoute = pathname?.startsWith('/driver');
+  const isLandingPage = pathname === '/';
+  const isAdminLoginPage = pathname === '/admin/login';
   
-  if (isDriverRoute) {
+  if (isDriverRoute || isLandingPage || isAdminLoginPage) {
     return <>{children}</>;
   }
   

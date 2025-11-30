@@ -1,4 +1,4 @@
-# **App Name**: TruckOps Tracker
+# **App Name**: TruckTrack
 
 ## Core Features:
 

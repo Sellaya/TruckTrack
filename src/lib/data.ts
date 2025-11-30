@@ -354,6 +354,7 @@ export {
   updateUnit,
   createTrip,
   updateTrip,
+  deleteTrip,
   createTransaction,
   updateTransaction,
   deleteTransaction,
