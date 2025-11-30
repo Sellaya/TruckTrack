@@ -30,6 +30,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -1548,6 +1549,11 @@ export default function DriverDashboardViewPage() {
             <DialogTitle className="text-xl sm:text-2xl">
               {editingExpense ? 'Edit Expense' : 'Add Expense'}
             </DialogTitle>
+            <DialogDescription>
+              {editingExpense 
+                ? 'Update the expense details below. Changes will be reflected immediately.'
+                : 'Add a new expense for this driver. All fields marked with * are required.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">

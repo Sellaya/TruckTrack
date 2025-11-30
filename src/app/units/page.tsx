@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
   DialogClose,
@@ -168,34 +169,35 @@ export default function UnitsPage() {
         }
       } else {
         // Add new unit
-        const newUnit = await createUnit({
-          name,
-          licensePlate,
+        const unitData = {
+          name: name.trim(),
+          licensePlate: licensePlate.trim(),
           purchaseDate: parseDateSafely(purchaseDate),
-          staticCost: parseFloat(staticCost),
-          coveredMiles: parseFloat(coveredMiles),
-        });
-        if (newUnit) {
-          // Reload units to ensure we have the latest data from database
-          const updatedUnits = await getUnits();
-          setUnits(updatedUnits || []);
-          toast({ title: "Unit Added", description: `${name} has been added to your fleet.` });
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to create unit. Please try again.",
-            variant: "destructive",
-          });
-          return;
+          staticCost: parseFloat(staticCost) || 0,
+          coveredMiles: parseFloat(coveredMiles) || 0,
+        };
+        
+        console.log('Attempting to create unit with data:', unitData);
+        
+        const newUnit = await createUnit(unitData);
+        
+        if (!newUnit) {
+          throw new Error('Unit creation returned null. Please try again.');
         }
+        
+        // Reload units to ensure we have the latest data from database
+        const updatedUnits = await getUnits();
+        setUnits(updatedUnits || []);
+        toast({ title: "Unit Added", description: `${name} has been added to your fleet.` });
       }
       setOpen(false);
       resetForm();
     } catch (error) {
       console.error('Error saving unit:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
       toast({
         title: "Error",
-        description: "An unexpected error occurred.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -220,6 +222,11 @@ export default function UnitsPage() {
           <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingUnit ? 'Edit Unit' : 'Add a New Unit'}</DialogTitle>
+              <DialogDescription>
+                {editingUnit 
+                  ? 'Update the unit information below. License plate must be unique.'
+                  : 'Fill in the details to add a new unit to your fleet. License plate must be unique.'}
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">

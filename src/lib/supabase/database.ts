@@ -1,6 +1,35 @@
 import { supabase } from './client'
 import type { Trip, Transaction, Unit, Driver, Location } from '../types'
 
+// Helper function to extract all properties from an error object
+function extractErrorInfo(error: any): Record<string, any> {
+  const info: Record<string, any> = {};
+  
+  // Get all own property names (enumerable and non-enumerable)
+  const allKeys = Object.getOwnPropertyNames(error);
+  
+  // Also try to get keys from prototype
+  try {
+    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(error));
+    allKeys.push(...protoKeys.filter(k => !allKeys.includes(k)));
+  } catch (e) {
+    // Ignore prototype errors
+  }
+  
+  for (const key of allKeys) {
+    try {
+      const value = (error as any)[key];
+      if (value !== undefined) {
+        info[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      }
+    } catch (e) {
+      info[key] = '[unable to access]';
+    }
+  }
+  
+  return info;
+}
+
 // Helper to convert database row to Trip
 function rowToTrip(row: any): Trip {
   return {
@@ -89,27 +118,119 @@ export async function getUnits(): Promise<Unit[]> {
 export async function createUnit(unit: Omit<Unit, 'id'>): Promise<Unit | null> {
   if (!supabase) {
     console.warn('Supabase not configured')
-    return null
+    throw new Error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment variables.')
   }
 
-  const { data, error } = await supabase
-    .from('units')
-    .insert({
+  // Validate required fields
+  if (!unit.name || !unit.licensePlate || !unit.purchaseDate) {
+    throw new Error('Missing required fields: name, licensePlate, and purchaseDate are required.')
+  }
+
+  // Validate data types
+  if (isNaN(unit.staticCost) || unit.staticCost < 0) {
+    throw new Error('Static cost must be a valid positive number.')
+  }
+
+  if (isNaN(unit.coveredMiles) || unit.coveredMiles < 0) {
+    throw new Error('Covered miles must be a valid positive number.')
+  }
+
+  try {
+    // Log initial unit data received
+    console.log('createUnit called with:', {
       name: unit.name,
-      license_plate: unit.licensePlate,
+      licensePlate: unit.licensePlate,
+      purchaseDate: unit.purchaseDate,
+      staticCost: unit.staticCost,
+      coveredMiles: unit.coveredMiles,
+    });
+
+    const insertData = {
+      name: unit.name.trim(),
+      license_plate: unit.licensePlate.trim(),
       purchase_date: unit.purchaseDate,
-      static_cost: unit.staticCost,
-      covered_miles: unit.coveredMiles,
-    })
-    .select()
-    .single()
+      static_cost: parseFloat(unit.staticCost.toString()),
+      covered_miles: parseInt(unit.coveredMiles.toString(), 10),
+    };
 
-  if (error) {
-    console.error('Error creating unit:', error)
-    return null
+    console.log('Insert data prepared:', {
+      name: insertData.name,
+      license_plate: insertData.license_plate,
+      purchase_date: insertData.purchase_date,
+      static_cost: insertData.static_cost,
+      covered_miles: insertData.covered_miles,
+    });
+
+    console.log('Supabase client available:', !!supabase);
+    console.log('About to call Supabase insert...');
+
+    const { data, error } = await supabase
+      .from('units')
+      .insert(insertData)
+      .select()
+      .single()
+
+    console.log('Supabase response received:', {
+      hasData: !!data,
+      hasError: !!error,
+      dataKeys: data ? Object.keys(data) : null,
+      errorType: error ? typeof error : null,
+    });
+
+    if (error) {
+      // Build comprehensive error message as a single string
+      const errorParts: string[] = [];
+      
+      // Add error properties as strings
+      if (error.message) errorParts.push(`Message: ${error.message}`);
+      if (error.code) errorParts.push(`Code: ${error.code}`);
+      if (error.details) errorParts.push(`Details: ${error.details}`);
+      if (error.hint) errorParts.push(`Hint: ${error.hint}`);
+      if (error.status) errorParts.push(`Status: ${error.status}`);
+      
+      // Add insert data info
+      errorParts.push(`Attempted to insert: name="${insertData.name}", license_plate="${insertData.license_plate}"`);
+      
+      const fullErrorDetails = errorParts.join(' | ');
+      console.error('Error creating unit:', fullErrorDetails);
+      
+      // Also log error object properties individually
+      console.error('Error.message:', error.message);
+      console.error('Error.code:', error.code);
+      console.error('Error.status:', (error as any).status);
+      console.error('Error object keys:', Object.keys(error));
+      
+      // Handle specific error cases
+      const errorCode = error.code || '';
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorStatus = (error as any).status || (error as any).statusCode || 0;
+      
+      if (errorCode === '23505' || errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
+        throw new Error(`A unit with license plate "${unit.licensePlate}" already exists. Please use a different license plate.`);
+      } else if (errorCode === 'PGRST204' || errorCode === 'PGRST116' || errorStatus === 409) {
+        throw new Error('Failed to create unit. The data may conflict with existing records or the request was rejected.');
+      } else if (errorCode === '42501' || errorStatus === 403) {
+        throw new Error('Permission denied. Please check your database permissions or Row Level Security policies.');
+      } else if (error.message) {
+        throw new Error(`Failed to create unit: ${error.message}`);
+      } else {
+        throw new Error(`Failed to create unit. Error code: ${errorCode || errorStatus || 'unknown'}. ${fullErrorDetails}`);
+      }
+    }
+
+    if (!data) {
+      throw new Error('No data returned after creating unit. Please try again.')
+    }
+
+    return rowToUnit(data)
+  } catch (err) {
+    // Re-throw if it's already an Error with a message
+    if (err instanceof Error) {
+      throw err
+    }
+    // Otherwise wrap it
+    throw new Error(`Unexpected error creating unit: ${String(err)}`)
   }
-
-  return rowToUnit(data)
 }
 
 export async function updateUnit(id: string, unit: Partial<Omit<Unit, 'id'>>): Promise<Unit | null> {
