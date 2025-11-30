@@ -18,7 +18,7 @@ import { getTransactionsByDriver as getTransactionsByDriverFromDB } from '@/lib/
 import type { Trip, Transaction, Driver, Unit } from '@/lib/types';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
-import { ArrowLeft, MapPin, Calendar, Route, Package, DollarSign, User, Phone, CreditCard, PlusCircle, Receipt, ChevronDown, ChevronRight, Mail, ArrowUpDown, ArrowUp, ArrowDown, Clock, Filter, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Route, Package, DollarSign, User, Phone, CreditCard, PlusCircle, Receipt, ChevronDown, ChevronRight, Mail, ArrowUpDown, ArrowUp, ArrowDown, Clock, Filter, Edit, Trash2, Upload } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBothCurrencies, convertCurrency, getPrimaryCurrency, getCADToUSDRate, getUSDToCADRate, formatCurrency } from '@/lib/currency';
 import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
@@ -43,6 +43,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export default function DriverDashboardViewPage() {
   const router = useRouter();
@@ -80,6 +86,9 @@ export default function DriverDashboardViewPage() {
     receiptUrl: '',
   });
   const [otherCategory, setOtherCategory] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -230,6 +239,91 @@ export default function DriverDashboardViewPage() {
     return { cad: cadTotal, usd: usdTotal, grandTotal };
   };
 
+  const uploadReceiptImage = async (file: File): Promise<string> => {
+    try {
+      // Try to upload to Supabase Storage if available
+      const { supabase } = await import('@/lib/supabase/client');
+      
+      if (supabase) {
+        // Create a unique filename
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${driverId || 'admin'}-${Date.now()}.${fileExt}`;
+        const filePath = `receipts/${fileName}`;
+
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          console.warn('Supabase upload error (falling back to base64):', error.message || error);
+          // Fallback to base64 if Supabase upload fails
+          return await convertToBase64(file);
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(filePath);
+
+        return urlData.publicUrl;
+      } else {
+        // Fallback to base64 if Supabase is not configured
+        return await convertToBase64(file);
+      }
+    } catch (error: any) {
+      console.warn('Error uploading image to Supabase (falling back to base64):', error?.message || error);
+      // Fallback to base64 for any error
+      return await convertToBase64(file);
+    }
+  };
+
+  const convertToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select an image file.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Please select an image smaller than 10MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setReceiptFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setReceiptPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveExpense = async () => {
     if (!driverId) {
       toast({
@@ -260,8 +354,16 @@ export default function DriverDashboardViewPage() {
     }
 
     try {
+      setIsUploading(true);
+      
       // Use custom category if "Other" is selected, otherwise use selected category
       const finalCategory = expenseForm.category === 'Other' ? otherCategory.trim() : expenseForm.category;
+      
+      // Upload receipt image if a file is selected
+      let receiptUrl = expenseForm.receiptUrl;
+      if (receiptFile) {
+        receiptUrl = await uploadReceiptImage(receiptFile);
+      }
       
       if (editingExpense) {
         // Update existing expense
@@ -277,7 +379,7 @@ export default function DriverDashboardViewPage() {
           vendorName: expenseForm.vendorName || undefined,
           notes: expenseForm.notes || undefined,
           date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
-          receiptUrl: expenseForm.receiptUrl || undefined,
+          receiptUrl: receiptUrl || undefined,
         });
 
         if (!updatedExpense) {
@@ -308,7 +410,7 @@ export default function DriverDashboardViewPage() {
           notes: expenseForm.notes || undefined,
           date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
           driverId: driverId,
-          receiptUrl: expenseForm.receiptUrl || undefined,
+          receiptUrl: receiptUrl || undefined,
         });
 
         if (!newExpense) {
@@ -344,8 +446,11 @@ export default function DriverDashboardViewPage() {
         receiptUrl: '',
       });
       setOtherCategory('');
+      setReceiptFile(null);
+      setReceiptPreview(null);
       setExpenseDialogOpen(false);
       setSelectedTripId(null);
+      setIsUploading(false);
       setEditingExpense(null);
     } catch (error) {
       console.error('Error saving expense:', error);
@@ -354,6 +459,8 @@ export default function DriverDashboardViewPage() {
         description: editingExpense ? "Failed to update expense. Please try again." : "Failed to add expense. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -379,6 +486,8 @@ export default function DriverDashboardViewPage() {
         receiptUrl: expense.receiptUrl || '',
       });
       setOtherCategory(isCustomCategory ? expense.category : '');
+      setReceiptPreview(expense.receiptUrl || null);
+      setReceiptFile(null);
     } else {
       // Adding new expense
       setEditingExpense(null);
@@ -397,6 +506,8 @@ export default function DriverDashboardViewPage() {
         receiptUrl: '',
       });
       setOtherCategory('');
+      setReceiptPreview(null);
+      setReceiptFile(null);
     }
     setExpenseDialogOpen(true);
   };
@@ -453,38 +564,37 @@ export default function DriverDashboardViewPage() {
     <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
       {/* Header Section - Monday.com Style */}
       <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 w-full max-w-full">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 w-full max-w-full">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <Button
               variant="ghost"
               onClick={() => router.push('/drivers')}
-              className="h-9 px-3 rounded-lg -ml-2"
+              className="h-9 px-2 sm:px-3 rounded-lg -ml-2 flex-shrink-0"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Back to Drivers</span>
-              <span className="sm:hidden">Back</span>
             </Button>
-            <div className="h-6 w-px bg-gray-300" />
-            <h1 className="text-2xl font-semibold text-gray-900">{driver.name}</h1>
+            <div className="h-6 w-px bg-gray-300 flex-shrink-0 hidden sm:block" />
+            <h1 className="text-lg sm:text-2xl font-semibold text-gray-900 truncate">{driver.name}</h1>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-6">
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-4 sm:py-6">
         {/* Driver Info Card - Monday.com Style */}
-        <Card className="mb-6 border border-gray-200 rounded-lg shadow-sm">
+        <Card className="mb-4 sm:mb-6 border border-gray-200 rounded-lg shadow-sm">
           <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-[#0073ea]/10 flex items-center justify-center flex-shrink-0">
-                <User className="h-8 w-8 text-[#0073ea]" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-[#0073ea]/10 flex items-center justify-center flex-shrink-0">
+                <User className="h-7 w-7 sm:h-8 sm:w-8 text-[#0073ea]" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{driver.name}</h2>
+              <div className="flex-1 min-w-0 w-full">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate flex-1 min-w-0">{driver.name}</h2>
                   <Badge 
                     variant={driver.isActive ? "default" : "secondary"}
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
                       driver.isActive 
                         ? 'bg-green-100 text-green-700 border-green-200' 
                         : 'bg-gray-100 text-gray-700 border-gray-200'
@@ -493,23 +603,25 @@ export default function DriverDashboardViewPage() {
                     {driver.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Mail className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">{driver.email}</span>
+                <div className="flex flex-col gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                    <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="truncate min-w-0">{driver.email}</span>
                   </div>
-                  {driver.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{driver.phone}</span>
-                    </div>
-                  )}
-                  {driver.licenseNumber && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <CreditCard className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{driver.licenseNumber}</span>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {driver.phone && (
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                        <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="truncate">{driver.phone}</span>
+                      </div>
+                    )}
+                    {driver.licenseNumber && (
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                        <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="truncate">{driver.licenseNumber}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -517,7 +629,7 @@ export default function DriverDashboardViewPage() {
         </Card>
 
         {/* Summary Cards - Monday.com Style */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card className="border border-gray-200 rounded-lg shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-semibold text-gray-900">Total Trips</CardTitle>
@@ -551,8 +663,135 @@ export default function DriverDashboardViewPage() {
           </Card>
         </div>
 
-      {/* Filter and Sort Controls */}
-      <Card>
+      {/* Filter and Sort Controls - Mobile: Accordion, Desktop: Card */}
+      {/* Mobile: Accordion */}
+      <div className="lg:hidden mb-6">
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="filters" className="border border-gray-200 rounded-lg">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-600" />
+                <span className="font-medium">Filters</span>
+                {(filterStartDate || filterEndDate || statusFilter !== 'all') && (
+                  <Badge className="rounded-full px-2 py-0.5 text-xs bg-blue-100 text-blue-700">
+                    Active
+                  </Badge>
+                )}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4 space-y-4">
+              <div className="space-y-4">
+                {/* Date Range */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Date Range
+                  </Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Start Date</Label>
+                      <DatePicker
+                        id="filterStartDate"
+                        value={filterStartDate}
+                        onChange={setFilterStartDate}
+                        placeholder="Select start date"
+                        minDate={new Date(1900, 0, 1)}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">End Date</Label>
+                      <DatePicker
+                        id="filterEndDate"
+                        value={filterEndDate}
+                        onChange={setFilterEndDate}
+                        placeholder="Select end date"
+                        minDate={filterStartDate ? new Date(filterStartDate) : new Date(1900, 0, 1)}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full h-11">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="ongoing">Ongoing</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort Options */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Sort By</Label>
+                    <Select value={sortBy} onValueChange={(value: 'date' | 'name' | 'status') => setSortBy(value)}>
+                      <SelectTrigger className="w-full h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Date</SelectItem>
+                        <SelectItem value="name">Name</SelectItem>
+                        <SelectItem value="status">Status</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Order</Label>
+                    <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+                      <SelectTrigger className="w-full h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="desc">
+                          <div className="flex items-center gap-2">
+                            <ArrowDown className="h-3.5 w-3.5" />
+                            <span>Desc</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="asc">
+                          <div className="flex items-center gap-2">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                            <span>Asc</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                {(filterStartDate || filterEndDate || statusFilter !== 'all') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFilterStartDate('');
+                      setFilterEndDate('');
+                      setStatusFilter('all');
+                    }}
+                    className="w-full h-10 gap-2"
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span>Clear All Filters</span>
+                  </Button>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
+      {/* Desktop: Card */}
+      <Card className="hidden lg:block mb-6">
         <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
           <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
             <Filter className="h-4 w-4 text-primary flex-shrink-0" />
@@ -714,17 +953,17 @@ export default function DriverDashboardViewPage() {
 
       {/* Ongoing Trips */}
       {ongoingTrips.length > 0 && (
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-b">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Route className="h-5 w-5 text-primary" />
+        <Card className="overflow-hidden mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-b p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Route className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              Ongoing Trips ({ongoingTrips.length})
+              <span className="truncate">Ongoing Trips ({ongoingTrips.length})</span>
             </CardTitle>
-            <CardDescription className="mt-2">Trips currently in progress - click to view details and add expenses</CardDescription>
+            <CardDescription className="mt-2 text-xs sm:text-sm">Trips currently in progress - click to view details and add expenses</CardDescription>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
+          <CardContent className="p-3 sm:p-4 lg:p-6">
             <div className="space-y-4">
               {ongoingTrips.map((trip) => {
                 const expenses = tripExpenses[trip.id] || [];
@@ -736,24 +975,24 @@ export default function DriverDashboardViewPage() {
                       className="cursor-pointer"
                       onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
                     >
-                      <div className="p-4 sm:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
-                        <div className="flex flex-col gap-4">
+                      <div className="p-3 sm:p-4 lg:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
+                        <div className="flex flex-col gap-3 sm:gap-4">
                           {/* Header Row */}
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start justify-between gap-3 sm:gap-4">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                                   {isExpanded ? (
-                                    <ChevronDown className="h-5 w-5 text-primary" />
+                                    <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                                   ) : (
-                                    <ChevronRight className="h-5 w-5 text-primary" />
+                                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="font-bold text-lg sm:text-xl truncate text-foreground mb-1">
+                                  <h3 className="font-bold text-base sm:text-lg lg:text-xl truncate text-foreground mb-1.5">
                                     {trip.name || 'Unnamed Trip'}
                                   </h3>
-                                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 h-6 sm:h-7 shadow-sm">
+                                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 h-5 sm:h-6 shadow-sm">
                                     <div className="h-1.5 w-1.5 rounded-full bg-white/90 mr-1.5 animate-pulse" />
                                     Ongoing
                                   </Badge>
@@ -761,55 +1000,65 @@ export default function DriverDashboardViewPage() {
                               </div>
 
                               {/* Route Information */}
-                              <div className="ml-[52px] space-y-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                                  <div className="flex items-center gap-2 min-w-0 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <MapPin className="h-4 w-4 text-primary" />
+                              <div className="ml-0 sm:ml-[52px] space-y-2.5 sm:space-y-3">
+                                <div className="w-full">
+                                  <div className="flex items-start gap-2.5 min-w-0 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-blue-100/30 border-2 border-blue-200/50">
+                                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-xs text-muted-foreground mb-0.5">Route</div>
-                                      <div className="flex items-center gap-2 text-sm font-semibold">
-                                        <span className="truncate">{trip.origin || 'Origin TBD'}</span>
-                                        <span className="text-primary flex-shrink-0">→</span>
-                                        <span className="truncate">{trip.destination || 'Destination TBD'}</span>
+                                      <div className="text-xs font-medium text-gray-600 mb-1.5">Route</div>
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.origin || 'Origin TBD'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                          <span className="text-primary text-xs font-medium">↓</span>
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                        </div>
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.destination || 'Destination TBD'}</span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Details Grid */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    <div className="min-w-0">
-                                      <div className="text-xs text-muted-foreground">Date Range</div>
-                                      <div className="text-sm font-medium truncate">
+                                <div className="grid grid-cols-1 gap-2">
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Date Range</div>
+                                      <div className="text-sm font-semibold text-foreground">
                                         {trip.startDate && trip.endDate ? (
                                           <>
                                             {format(new Date(trip.startDate), 'MMM d')} - {format(new Date(trip.endDate), 'MMM d, yyyy')}
                                           </>
                                         ) : (
-                                          <span className="text-muted-foreground">Date TBD</span>
+                                          <span className="text-muted-foreground font-normal">Date TBD</span>
                                         )}
                                       </div>
                                     </div>
                                   </div>
                                   
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Route className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                     <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Distance</div>
                                       <DistanceDisplay 
                                         distance={trip.distance || 0}
                                         variant="default"
-                                        showLabel={true}
+                                        showLabel={false}
+                                        className="text-sm font-semibold"
                                       />
                                     </div>
                                   </div>
 
                                   {expenses.length > 0 && (
-                                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                      <div className="text-xs text-foreground font-semibold">Total Expenses</div>
+                                    <div className="flex flex-col gap-1.5 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-green-50/50 to-green-100/30 border-2 border-green-200/50">
+                                      <div className="text-xs font-semibold text-gray-700">Total Expenses</div>
                                       <GrandTotalDisplay
                                         cadAmount={totals.cad}
                                         usdAmount={totals.usd}
@@ -817,6 +1066,7 @@ export default function DriverDashboardViewPage() {
                                         cadToUsdRate={cadToUsdRate}
                                         usdToCadRate={usdToCadRate}
                                         variant="compact"
+                                        className="text-sm"
                                       />
                                     </div>
                                   )}
@@ -824,16 +1074,16 @@ export default function DriverDashboardViewPage() {
 
                                 {/* Cargo Details */}
                                 {trip.cargoDetails && (
-                                  <div className="ml-0 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <div className="text-xs text-muted-foreground mb-1">Cargo Details</div>
-                                    <div className="text-sm text-foreground line-clamp-2">{trip.cargoDetails}</div>
+                                  <div className="ml-0 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <div className="text-xs font-medium text-muted-foreground mb-1.5">Cargo Details</div>
+                                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-relaxed">{trip.cargoDetails}</div>
                                   </div>
                                 )}
                               </div>
                             </div>
 
                             {/* Action Button */}
-                            <div className="flex flex-col gap-2 flex-shrink-0">
+                            <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0 w-full sm:w-auto justify-between sm:justify-start">
                               <Button
                                 variant="default"
                                 size="sm"
@@ -841,18 +1091,16 @@ export default function DriverDashboardViewPage() {
                                   e.stopPropagation();
                                   openExpenseDialog(trip.id);
                                 }}
-                                className="whitespace-nowrap shadow-sm"
+                                className="whitespace-nowrap shadow-sm flex-1 sm:flex-none"
                               >
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 <span className="hidden sm:inline">Add Expense</span>
                                 <span className="sm:hidden">Add</span>
                               </Button>
                               {expenses.length > 0 && (
-                                <div className="text-center">
-                                  <Badge variant="outline" className="text-xs">
-                                    {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
-                                  </Badge>
-                                </div>
+                                <Badge variant="outline" className="text-xs self-center">
+                                  {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+                                </Badge>
                               )}
                             </div>
                           </div>
@@ -874,19 +1122,85 @@ export default function DriverDashboardViewPage() {
                         
                         {/* CAD Expenses */}
                         {expenses.filter(e => e.originalCurrency === 'CAD').length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <DollarSign className="h-4 w-4 text-foreground" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
                                 </div>
                                 <span className="text-foreground">CAD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-muted text-foreground border-border text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
                                 {expenses.filter(e => e.originalCurrency === 'CAD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} CAD
                               </Badge>
                             </div>
-                            <div className="overflow-x-auto">
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'CAD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="bg-muted/50">
@@ -957,19 +1271,85 @@ export default function DriverDashboardViewPage() {
 
                         {/* USD Expenses */}
                         {expenses.filter(e => e.originalCurrency === 'USD').length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <DollarSign className="h-4 w-4 text-foreground" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
                                 </div>
                                 <span className="text-foreground">USD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-muted text-foreground border-border text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-muted text-foreground border-border text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
                                 {expenses.filter(e => e.originalCurrency === 'USD').reduce((sum, e) => sum + e.amount, 0).toFixed(2)} USD
                               </Badge>
                             </div>
-                            <div className="overflow-x-auto">
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'USD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="bg-muted/50">
@@ -1040,22 +1420,24 @@ export default function DriverDashboardViewPage() {
 
                         {/* Grand Total */}
                         {expenses.length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-muted/80 to-muted/50 border-border/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <DollarSign className="h-5 w-5 text-foreground" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-muted/80 to-muted/50 border-border/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-foreground" />
                                 </div>
                                 <span className="text-foreground">Grand Total</span>
                               </h5>
-                              <GrandTotalDisplay
-                                cadAmount={getTripTotalExpenses(trip.id).cad}
-                                usdAmount={getTripTotalExpenses(trip.id).usd}
-                                primaryCurrency={primaryCurrency}
-                                cadToUsdRate={cadToUsdRate}
-                                usdToCadRate={usdToCadRate}
-                                variant="compact"
-                              />
+                              <div className="self-start sm:self-center">
+                                <GrandTotalDisplay
+                                  cadAmount={getTripTotalExpenses(trip.id).cad}
+                                  usdAmount={getTripTotalExpenses(trip.id).usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1187,49 +1569,59 @@ export default function DriverDashboardViewPage() {
                               </div>
 
                               {/* Route Information */}
-                              <div className="ml-[52px] space-y-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                                  <div className="flex items-center gap-2 min-w-0 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <MapPin className="h-4 w-4 text-primary" />
+                              <div className="ml-0 sm:ml-[52px] space-y-2.5 sm:space-y-3">
+                                <div className="w-full">
+                                  <div className="flex items-start gap-2.5 min-w-0 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-blue-100/30 border-2 border-blue-200/50">
+                                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-xs text-muted-foreground mb-0.5">Route</div>
-                                      <div className="flex items-center gap-2 text-sm font-semibold">
-                                        <span className="truncate">{trip.origin || 'Origin TBD'}</span>
-                                        <span className="text-primary flex-shrink-0">→</span>
-                                        <span className="truncate">{trip.destination || 'Destination TBD'}</span>
+                                      <div className="text-xs font-medium text-gray-600 mb-1.5">Route</div>
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.origin || 'Origin TBD'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                          <span className="text-primary text-xs font-medium">↓</span>
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                        </div>
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.destination || 'Destination TBD'}</span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Details Grid */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    <div className="min-w-0">
-                                      <div className="text-xs text-muted-foreground">Completed Date</div>
-                                      <div className="text-sm font-medium truncate">
-                                        {trip.endDate ? format(new Date(trip.endDate), 'MMM d, yyyy') : 'Date TBD'}
+                                <div className="grid grid-cols-1 gap-2">
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Completed Date</div>
+                                      <div className="text-sm font-semibold text-foreground">
+                                        {trip.endDate ? format(new Date(trip.endDate), 'MMM d, yyyy') : <span className="text-muted-foreground font-normal">Date TBD</span>}
                                       </div>
                                     </div>
                                   </div>
                                   
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <Route className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Route className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                     <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Distance</div>
                                       <DistanceDisplay 
                                         distance={trip.distance || 0}
                                         variant="default"
-                                        showLabel={true}
+                                        showLabel={false}
+                                        className="text-sm font-semibold"
                                       />
                                     </div>
                                   </div>
 
                                   {expenses.length > 0 && (
-                                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                      <div className="text-xs text-foreground font-semibold">Total Expenses</div>
+                                    <div className="flex flex-col gap-1.5 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-green-50/50 to-green-100/30 border-2 border-green-200/50">
+                                      <div className="text-xs font-semibold text-gray-700">Total Expenses</div>
                                       <GrandTotalDisplay
                                         cadAmount={totals.cad}
                                         usdAmount={totals.usd}
@@ -1237,6 +1629,7 @@ export default function DriverDashboardViewPage() {
                                         cadToUsdRate={cadToUsdRate}
                                         usdToCadRate={usdToCadRate}
                                         variant="compact"
+                                        className="text-sm"
                                       />
                                     </div>
                                   )}
@@ -1244,9 +1637,9 @@ export default function DriverDashboardViewPage() {
 
                                 {/* Cargo Details */}
                                 {trip.cargoDetails && (
-                                  <div className="ml-0 p-2 rounded-lg bg-background/60 border border-border/50">
-                                    <div className="text-xs text-muted-foreground mb-1">Cargo Details</div>
-                                    <div className="text-sm text-foreground line-clamp-2">{trip.cargoDetails}</div>
+                                  <div className="ml-0 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <div className="text-xs font-medium text-muted-foreground mb-1.5">Cargo Details</div>
+                                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-relaxed">{trip.cargoDetails}</div>
                                   </div>
                                 )}
                               </div>
@@ -1281,32 +1674,98 @@ export default function DriverDashboardViewPage() {
                     </div>
                     
                     {isExpanded && (
-                      <div className="p-4 sm:p-6 border-t bg-muted/20 space-y-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-bold text-lg sm:text-xl flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-primary" />
+                      <div className="p-3 sm:p-4 lg:p-6 border-t bg-muted/20 space-y-3 sm:space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
+                          <h4 className="font-bold text-base sm:text-lg lg:text-xl flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                             Trip Expenses
                           </h4>
-                          <Badge variant="outline" className="text-sm">
+                          <Badge variant="outline" className="text-xs sm:text-sm self-start sm:self-center">
                             {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
                         
                         {/* CAD Expenses */}
                         {expenses.filter(e => e.originalCurrency === 'CAD').length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <DollarSign className="h-4 w-4 text-foreground" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
                                 </div>
                                 <span className="text-foreground">CAD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
                                 {totals.cad.toFixed(2)} CAD
                               </Badge>
                             </div>
-                            <div className="overflow-x-auto">
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'CAD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="bg-muted/50">
@@ -1377,19 +1836,85 @@ export default function DriverDashboardViewPage() {
 
                         {/* USD Expenses */}
                         {expenses.filter(e => e.originalCurrency === 'USD').length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <DollarSign className="h-4 w-4 text-foreground" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
                                 </div>
                                 <span className="text-foreground">USD Expenses</span>
                               </h5>
-                              <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-sm font-semibold px-3 py-1">
+                              <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
                                 {totals.usd.toFixed(2)} USD
                               </Badge>
                             </div>
-                            <div className="overflow-x-auto">
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'USD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="bg-muted/50">
@@ -1460,33 +1985,23 @@ export default function DriverDashboardViewPage() {
 
                         {/* Grand Total */}
                         {expenses.length > 0 && (
-                          <div className="border-2 rounded-xl p-4 sm:p-5 bg-gradient-to-br from-red-50/80 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800/50 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <h5 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                                  <DollarSign className="h-5 w-5 text-red-700 dark:text-red-400" />
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-muted/80 to-muted/50 border-border/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-foreground" />
                                 </div>
-                                <span className="text-red-700 dark:text-red-400">Grand Total</span>
+                                <span className="text-foreground">Grand Total</span>
                               </h5>
-                              <div className="flex flex-col items-end gap-1">
-                                <div className="flex items-center gap-3">
-                                  {totals.cad > 0 && (
-                                    <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                                      {formatCurrency(totals.cad, 'CAD')}
-                                    </span>
-                                  )}
-                                  {totals.cad > 0 && totals.usd > 0 && (
-                                    <span className="text-muted-foreground">+</span>
-                                  )}
-                                  {totals.usd > 0 && (
-                                    <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                                      {formatCurrency(totals.usd, 'USD')}
-                                    </span>
-                                  )}
-                                </div>
-                                <Badge variant="outline" className="bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700 text-base font-bold px-4 py-1.5">
-                                  {formatCurrency(totals.grandTotal, primaryCurrency)}
-                                </Badge>
+                              <div className="self-start sm:self-center">
+                                <GrandTotalDisplay
+                                  cadAmount={getTripTotalExpenses(trip.id).cad}
+                                  usdAmount={getTripTotalExpenses(trip.id).usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                />
                               </div>
                             </div>
                           </div>
@@ -1748,17 +2263,56 @@ export default function DriverDashboardViewPage() {
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
-              <Label htmlFor="receiptUrl" className="sm:text-right">Receipt</Label>
-              <div className="sm:col-span-3 space-y-2">
-                <Input
-                  id="receiptUrl"
-                  type="url"
-                  value={expenseForm.receiptUrl}
-                  onChange={(e) => setExpenseForm(prev => ({ ...prev, receiptUrl: e.target.value }))}
-                  placeholder="Paste receipt image URL or upload file"
-                />
+              <Label htmlFor="receipt" className="sm:text-right">Receipt</Label>
+              <div className="sm:col-span-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="receipt"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Label
+                    htmlFor="receipt"
+                    className="flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  >
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {receiptFile ? 'Change Image' : 'Take Photo or Select from Gallery'}
+                    </span>
+                  </Label>
+                </div>
+                
+                {receiptPreview && (
+                  <div className="relative border rounded-lg p-2 bg-muted/30">
+                    <img
+                      src={receiptPreview}
+                      alt="Receipt preview"
+                      className="max-h-48 w-auto mx-auto rounded"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        setReceiptFile(null);
+                        setReceiptPreview(null);
+                        setExpenseForm(prev => ({ ...prev, receiptUrl: '' }));
+                        // Reset file input
+                        const fileInput = document.getElementById('receipt') as HTMLInputElement;
+                        if (fileInput) fileInput.value = '';
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                )}
+                
                 <div className="text-xs text-muted-foreground">
-                  You can paste an image URL or upload a file. For file upload, use a service like imgur.com or cloudinary.com to get a URL.
+                  Take a photo directly from your device camera or select an image from your gallery. Supported formats: JPG, PNG, WebP.
                 </div>
               </div>
             </div>
@@ -1768,8 +2322,12 @@ export default function DriverDashboardViewPage() {
             <DialogClose asChild>
               <Button variant="outline" className="hover:bg-gray-100">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSaveExpense} className="bg-[#0073ea] hover:bg-[#0058c2] text-white">
-              {editingExpense ? 'Update Expense' : 'Add Expense'}
+            <Button 
+              onClick={handleSaveExpense} 
+              className="bg-[#0073ea] hover:bg-[#0058c2] text-white"
+              disabled={isUploading}
+            >
+              {isUploading ? 'Uploading...' : editingExpense ? 'Update Expense' : 'Add Expense'}
             </Button>
           </DialogFooter>
         </DialogContent>
