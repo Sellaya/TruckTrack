@@ -20,3 +20,4 @@ COMMENT ON COLUMN transactions.notes IS 'Optional notes for the expense';
 
 
 
+

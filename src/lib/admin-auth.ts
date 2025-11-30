@@ -48,3 +48,4 @@ export async function loginAdmin(email: string, password: string): Promise<{ suc
 export function isAdminLoggedIn(): boolean {
   return getAdminSession();
 }
+
