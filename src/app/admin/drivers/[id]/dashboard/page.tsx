@@ -2508,6 +2508,7 @@ export default function DriverDashboardViewPage() {
               </CardContent>
             </Card>
           )}
+        </div>
       </div>
 
       {/* Add Expense Dialog */}
@@ -2524,7 +2525,7 @@ export default function DriverDashboardViewPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="grid gap-4">
+            <div className="grid gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label htmlFor="description" className="sm:text-right">Description *</Label>
               <Input
@@ -2731,7 +2732,7 @@ export default function DriverDashboardViewPage() {
                 </div>
               </div>
             </div>
-          </div>
+            </div>
           </div>
           <DialogFooter className="bg-gray-50 border-t border-gray-100 px-6 py-4 space-x-3">
             <DialogClose asChild>
@@ -2747,8 +2748,6 @@ export default function DriverDashboardViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        </div>
-      </div>
     </div>
   );
 }
