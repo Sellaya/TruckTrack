@@ -557,115 +557,128 @@ export default function DriverDashboardViewPage() {
 
   return (
     <div className="flex flex-col min-h-screen w-full overflow-x-hidden bg-background">
-      {/* Header Section - Monday.com Style */}
-      <div className="sticky top-0 z-20 bg-white border-b border-border w-full">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 w-full max-w-full">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+      {/* Modern Header - Monday.com Style */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-border/50 w-full shadow-sm">
+        <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 w-full max-w-full">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
             <Button
               variant="ghost"
               onClick={() => router.push('/drivers')}
-              className="h-9 px-2 sm:px-3 rounded-lg -ml-2 flex-shrink-0 hover:bg-muted"
+              className="h-9 w-9 sm:w-auto px-2 sm:px-3 rounded-lg flex-shrink-0 hover:bg-muted/80 transition-colors"
             >
               <ArrowLeft className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Back to Drivers</span>
+              <span className="hidden sm:inline text-sm font-medium">Back</span>
             </Button>
-            <div className="h-6 w-px bg-border flex-shrink-0 hidden sm:block" />
-            <div className="flex flex-col min-w-0 flex-1">
-              <h1 className="text-lg sm:text-2xl font-semibold text-foreground truncate">{driver.name}</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Driver Dashboard</p>
+            <div className="h-8 w-px bg-border/60 flex-shrink-0 hidden sm:block" />
+            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground truncate leading-tight">{driver.name}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Driver Dashboard & Analytics</p>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* Driver Info Card - Monday.com Style */}
-        <Card className="border border-border rounded-lg shadow-sm bg-card">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0 w-full space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground truncate flex-1 min-w-0">{driver.name}</h2>
-                  <Badge 
-                    variant={driver.isActive ? "default" : "secondary"}
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
-                      driver.isActive 
-                        ? 'bg-green-500/10 text-green-700 border-green-200' 
-                        : 'bg-muted text-muted-foreground border-border'
-                    }`}
-                  >
-                    {driver.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="h-4 w-4 flex-shrink-0" />
-                    <a href={`mailto:${driver.email}`} className="text-primary hover:underline truncate min-w-0">
-                      {driver.email}
-                    </a>
+      {/* Main Content - Modern Layout */}
+      <div className="flex-1 w-full overflow-x-hidden">
+        {/* Content Container with Max Width */}
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+          {/* Driver Profile Section - Enhanced Monday.com Style */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-card to-card/95 rounded-xl overflow-hidden">
+            <CardContent className="p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                <div className="relative">
+                  <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center flex-shrink-0 shadow-lg ring-4 ring-primary/5">
+                    <User className="h-10 w-10 sm:h-12 sm:w-12 text-primary" />
                   </div>
-                  {driver.phone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-4 w-4 flex-shrink-0" />
-                      <a href={`tel:${driver.phone}`} className="hover:text-foreground truncate">
-                        {driver.phone}
+                  {driver.isActive && (
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-green-500 border-4 border-white shadow-md"></div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 w-full space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground truncate flex-1 min-w-0">{driver.name}</h2>
+                    <Badge 
+                      variant={driver.isActive ? "default" : "secondary"}
+                      className={`rounded-full px-4 py-1.5 text-sm font-semibold flex-shrink-0 ${
+                        driver.isActive 
+                          ? 'bg-green-500/15 text-green-700 border-green-300/50 shadow-sm' 
+                          : 'bg-muted text-muted-foreground border-border'
+                      }`}
+                    >
+                      {driver.isActive ? '● Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                    <div className="flex items-center gap-2.5 text-sm text-muted-foreground group">
+                      <div className="h-9 w-9 rounded-lg bg-primary/5 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                        <Mail className="h-4 w-4 text-primary flex-shrink-0" />
+                      </div>
+                      <a href={`mailto:${driver.email}`} className="text-primary hover:text-primary/80 font-medium truncate min-w-0 transition-colors">
+                        {driver.email}
                       </a>
                     </div>
-                  )}
-                  {driver.licenseNumber && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CreditCard className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{driver.licenseNumber}</span>
-                    </div>
-                  )}
+                    {driver.phone && (
+                      <div className="flex items-center gap-2.5 text-sm text-muted-foreground group">
+                        <div className="h-9 w-9 rounded-lg bg-primary/5 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                          <Phone className="h-4 w-4 text-primary flex-shrink-0" />
+                        </div>
+                        <a href={`tel:${driver.phone}`} className="text-foreground hover:text-primary font-medium truncate transition-colors">
+                          {driver.phone}
+                        </a>
+                      </div>
+                    )}
+                    {driver.licenseNumber && (
+                      <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                        <div className="h-9 w-9 rounded-lg bg-primary/5 flex items-center justify-center">
+                          <CreditCard className="h-4 w-4 text-primary flex-shrink-0" />
+                        </div>
+                        <span className="font-medium text-foreground truncate">{driver.licenseNumber}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Summary Cards - Monday.com Style */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="border border-border rounded-lg shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground">Total Trips</CardTitle>
-              <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center">
-                <Route className="h-5 w-5 text-info" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">{trips.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {completedTrips.length} completed, {ongoingTrips.length} ongoing, {upcomingTrips.length} upcoming
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border border-border rounded-lg shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground">Total Expenses</CardTitle>
-              <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-success" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <GrandTotalDisplay
-                cadAmount={cadTotal}
-                usdAmount={usdTotal}
-                primaryCurrency={primaryCurrency}
-                cadToUsdRate={cadToUsdRate}
-                usdToCadRate={usdToCadRate}
-              />
-            </CardContent>
-          </Card>
+          {/* Metrics Summary - Modern Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6">
+            <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50/50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 rounded-xl hover:shadow-lg transition-all duration-200 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">Total Trips</CardTitle>
+                <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shadow-sm">
+                  <Route className="h-6 w-6 text-primary" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground mb-2">{trips.length}</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {completedTrips.length} completed, {ongoingTrips.length} ongoing, {upcomingTrips.length} upcoming
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-md bg-gradient-to-br from-green-50/50 to-green-100/30 dark:from-green-950/20 dark:to-green-900/10 rounded-xl hover:shadow-lg transition-all duration-200 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">Total Expenses</CardTitle>
+                <div className="h-12 w-12 rounded-xl bg-success/15 flex items-center justify-center shadow-sm">
+                  <DollarSign className="h-6 w-6 text-success" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <GrandTotalDisplay
+                  cadAmount={cadTotal}
+                  usdAmount={usdTotal}
+                  primaryCurrency={primaryCurrency}
+                  cadToUsdRate={cadToUsdRate}
+                  usdToCadRate={usdToCadRate}
+                />
+              </CardContent>
+            </Card>
         </div>
 
-        {/* Filter and Sort Controls - Mobile: Accordion, Desktop: Card */}
-        {/* Mobile: Accordion */}
-        <div className="lg:hidden">
+          {/* Filter and Sort Controls */}
+          {/* Mobile: Accordion */}
+          <div className="lg:hidden">
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="filters" className="border border-gray-200 rounded-lg">
             <AccordionTrigger className="px-4 hover:no-underline">
@@ -790,8 +803,8 @@ export default function DriverDashboardViewPage() {
         </Accordion>
       </div>
 
-        {/* Desktop: Card */}
-        <Card className="hidden lg:block border border-border rounded-lg shadow-sm bg-card">
+          {/* Desktop: Enhanced Filter Card */}
+          <Card className="hidden lg:block border-0 rounded-xl shadow-md bg-card overflow-hidden">
         <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
           <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
             <Filter className="h-4 w-4 text-primary flex-shrink-0" />
@@ -951,17 +964,17 @@ export default function DriverDashboardViewPage() {
         </CardContent>
         </Card>
 
-        {/* Ongoing Trips */}
-      {ongoingTrips.length > 0 && (
-        <Card className="overflow-hidden mb-4 sm:mb-6">
-          <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-b p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Route className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+          {/* Ongoing Trips Section */}
+          {ongoingTrips.length > 0 && (
+        <Card className="overflow-hidden border-0 shadow-md rounded-xl mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/15 to-primary/10 border-b border-primary/10 p-5 sm:p-6 lg:p-7">
+            <CardTitle className="flex items-center gap-3 text-xl sm:text-2xl font-bold">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Route className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
               <span className="truncate">Ongoing Trips ({ongoingTrips.length})</span>
             </CardTitle>
-            <CardDescription className="mt-2 text-xs sm:text-sm">Trips currently in progress - click to view details and add expenses</CardDescription>
+            <CardDescription className="mt-3 text-sm sm:text-base text-muted-foreground">Trips currently in progress - click to view details and add expenses</CardDescription>
           </CardHeader>
           <CardContent className="p-3 sm:p-4 lg:p-6">
             <div className="space-y-4">
@@ -1456,17 +1469,17 @@ export default function DriverDashboardViewPage() {
         </Card>
         )}
 
-        {/* Upcoming Trips */}
-      {upcomingTrips.length > 0 && (
-        <Card className="overflow-hidden mb-4 sm:mb-6">
-          <CardHeader className="bg-gradient-to-r from-blue-500/5 via-blue-500/10 to-blue-500/5 border-b p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+          {/* Upcoming Trips Section */}
+          {upcomingTrips.length > 0 && (
+        <Card className="overflow-hidden border-0 shadow-md rounded-xl mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/15 to-blue-500/10 border-b border-blue-500/10 p-5 sm:p-6 lg:p-7">
+            <CardTitle className="flex items-center gap-3 text-xl sm:text-2xl font-bold">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
               </div>
               <span className="truncate">Upcoming Trips ({upcomingTrips.length})</span>
             </CardTitle>
-            <CardDescription className="mt-2 text-xs sm:text-sm">Scheduled trips - click to view details</CardDescription>
+            <CardDescription className="mt-3 text-sm sm:text-base text-muted-foreground">Scheduled trips - click to view details</CardDescription>
           </CardHeader>
           <CardContent className="p-3 sm:p-4 lg:p-6">
             <div className="space-y-4">
@@ -1958,17 +1971,17 @@ export default function DriverDashboardViewPage() {
         </Card>
         )}
 
-        {/* Completed Trips */}
-      {completedTrips.length > 0 && (
-        <Card className="overflow-hidden mb-4 sm:mb-6">
-          <CardHeader className="bg-gradient-to-r from-green-500/5 via-green-500/10 to-green-500/5 border-b p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+          {/* Completed Trips Section */}
+          {completedTrips.length > 0 && (
+        <Card className="overflow-hidden border-0 shadow-md rounded-xl mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-green-500/10 via-green-500/15 to-green-500/10 border-b border-green-500/10 p-5 sm:p-6 lg:p-7">
+            <CardTitle className="flex items-center gap-3 text-xl sm:text-2xl font-bold">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Package className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
               </div>
               <span className="truncate">Completed Trips ({completedTrips.length})</span>
             </CardTitle>
-            <CardDescription className="mt-2 text-xs sm:text-sm">Past completed trips - click to view details and expenses</CardDescription>
+            <CardDescription className="mt-3 text-sm sm:text-base text-muted-foreground">Past completed trips - click to view details and expenses</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <div className="space-y-4">
@@ -2460,37 +2473,41 @@ export default function DriverDashboardViewPage() {
         </Card>
         )}
 
-        {/* Empty State - No Trips */}
-        {filteredAndSortedTrips.length === 0 && trips.length > 0 && (
-          <Card className="border border-border rounded-lg shadow-sm bg-card">
-            <CardContent className="p-8 sm:p-12 text-center">
-              <Route className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No trips match your filters</h3>
-              <p className="text-sm text-muted-foreground mb-4">Try adjusting your filter criteria to see more trips.</p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFilterStartDate('');
-                  setFilterEndDate('');
-                  setStatusFilter('all');
-                }}
-                className="h-9 px-4"
-              >
-                Clear Filters
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+          {/* Empty State - No Trips Match Filters */}
+          {filteredAndSortedTrips.length === 0 && trips.length > 0 && (
+            <Card className="border-0 shadow-md rounded-xl bg-card overflow-hidden">
+              <CardContent className="p-12 sm:p-16 text-center">
+                <div className="h-20 w-20 mx-auto mb-6 rounded-2xl bg-muted/50 flex items-center justify-center">
+                  <Filter className="h-10 w-10 text-muted-foreground opacity-60" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">No trips match your filters</h3>
+                <p className="text-sm text-muted-foreground mb-6">Try adjusting your filter criteria to see more trips.</p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilterStartDate('');
+                    setFilterEndDate('');
+                    setStatusFilter('all');
+                  }}
+                  className="h-10 px-6 rounded-lg"
+                >
+                  Clear Filters
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
-        {trips.length === 0 && (
-          <Card className="border border-border rounded-lg shadow-sm bg-card">
-            <CardContent className="p-8 sm:p-12 text-center">
-              <Route className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No trips assigned yet</h3>
-              <p className="text-sm text-muted-foreground">This driver hasn't been assigned any trips yet.</p>
-            </CardContent>
-          </Card>
-        )}
+          {trips.length === 0 && (
+            <Card className="border-0 shadow-md rounded-xl bg-card overflow-hidden">
+              <CardContent className="p-12 sm:p-16 text-center">
+                <div className="h-20 w-20 mx-auto mb-6 rounded-2xl bg-muted/50 flex items-center justify-center">
+                  <Route className="h-10 w-10 text-muted-foreground opacity-60" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">No trips assigned yet</h3>
+                <p className="text-sm text-muted-foreground">This driver hasn't been assigned any trips yet.</p>
+              </CardContent>
+            </Card>
+          )}
       </div>
 
       {/* Add Expense Dialog */}
@@ -2730,6 +2747,8 @@ export default function DriverDashboardViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   );
 }
