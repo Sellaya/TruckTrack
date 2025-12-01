@@ -29,3 +29,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS units_vin_unique ON units(vin) WHERE vin IS NO
 -- Note: Uncomment the DROP statements above only after you've migrated all existing data
 -- and verified the new structure is working correctly.
 
+
+
+
+

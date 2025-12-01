@@ -134,3 +134,7 @@ You should see:
 - Restart your dev server
 - Check Supabase dashboard to verify columns exist
 
+
+
+
+

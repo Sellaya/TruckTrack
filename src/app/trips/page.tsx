@@ -1908,3 +1908,4 @@ export default function TripsPage() {
     </ErrorBoundary>
   );
 }
+``

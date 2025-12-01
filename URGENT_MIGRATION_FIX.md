@@ -111,3 +111,7 @@ Simply copy and paste the entire contents of `supabase/migration_fix_units_compl
 3. You can now add duplicate VINs
 4. You can delete units using the trash icon
 
+
+
+
+

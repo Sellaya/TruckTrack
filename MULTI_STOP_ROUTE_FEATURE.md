@@ -116,3 +116,7 @@ WHERE table_name = 'trips' AND column_name = 'stops';
 2. Refresh your app
 3. Start creating multi-stop trips!
 
+
+
+
+

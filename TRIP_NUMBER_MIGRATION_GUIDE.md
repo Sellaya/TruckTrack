@@ -98,3 +98,7 @@ If you encounter issues:
 - `src/lib/data.ts` - Updated mock data with trip numbers
 - `supabase/migration_add_trip_number.sql` - Database migration
 
+
+
+
+

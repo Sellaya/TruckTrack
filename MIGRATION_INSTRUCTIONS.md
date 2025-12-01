@@ -53,3 +53,7 @@ psql -h [your-supabase-host] -U postgres -d postgres -f supabase/migration_add_p
 - Verify the units table exists and has data (if any)
 - If you see constraint errors, check if any existing rows violate the country constraint
 
+
+
+
+

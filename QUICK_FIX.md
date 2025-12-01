@@ -66,3 +66,7 @@ Just copy its contents into the Supabase SQL Editor and run it.
 - **Error about existing data**: The migration sets default values for any existing rows
 - **Still getting errors**: Make sure you ran all the SQL statements, not just the first one
 
+
+
+
+
