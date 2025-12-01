@@ -32,7 +32,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { isMobile, setOpen, open } = useSidebar();
+  const { isMobile, setOpen, open, setOpenMobile } = useSidebar();
 
   // Initialize sidebar state on mount for admin routes (only once, not on every pathname change)
   // This ensures the sidebar has a default open state but allows user to toggle it
@@ -56,11 +56,15 @@ export function AppSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount, not on pathname changes
 
-  // Handle navigation - don't force sidebar state, let user control it
+  // Handle navigation - close sidebar when a page is selected
   const handleNavigation = () => {
-    // Mobile sidebar: can close on navigation (standard behavior)
-    // Desktop sidebar: maintain current state (user controls via toggle button)
-    // Don't force sidebar open/closed - respect user's preference
+    // Close sidebar on mobile when navigating
+    if (isMobile) {
+      setOpenMobile(false);
+    } else {
+      // Close sidebar on desktop as well when a page is selected
+      setOpen(false);
+    }
   };
 
   return (
