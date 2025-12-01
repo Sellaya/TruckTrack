@@ -45,7 +45,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { getTrips, getUnits, getDrivers, createTrip, updateTrip, deleteTrip, getTransactions } from '@/lib/data';
-import type { Trip, Unit, Location, Driver, Currency, RouteStop } from '@/lib/types';
+import type { Trip, Unit, Location, Driver, Currency, RouteStop, Transaction } from '@/lib/types';
 import { CityAutocomplete } from '@/components/ui/city-autocomplete';
 import { calculateDistanceMiles, calculateMultiStopDistance } from '@/lib/distance-calculator';
 import { MultiStopRouteInput } from '@/components/ui/multi-stop-route-input';
@@ -82,7 +82,7 @@ function TripsPageContent(): React.JSX.Element {
   const [unitId, setUnitId] = useState<string | undefined>(undefined);
   const [driverId, setDriverId] = useState<string | undefined>(undefined);
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);

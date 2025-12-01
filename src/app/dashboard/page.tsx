@@ -4,7 +4,7 @@ import { TrendingDown, Truck, Calendar, BarChart3, Route, Package, Filter, Dolla
 import { StatCard } from '@/components/dashboard/stat-card';
 import { getTransactions, getTrips, getUnits, getDrivers } from '@/lib/data';
 import { useEffect, useState, useMemo } from 'react';
-import type { Transaction, Trip, Unit } from '@/lib/types';
+import type { Transaction, Trip, Unit, Driver } from '@/lib/types';
 import { AdminRouteGuard } from '@/components/admin-route-guard';
 import {
   convertCurrency, 
@@ -28,7 +28,7 @@ function DashboardContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   

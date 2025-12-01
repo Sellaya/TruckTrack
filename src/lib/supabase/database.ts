@@ -2,7 +2,7 @@ import { supabase } from './client'
 import type { Trip, Transaction, Unit, Driver, Location, RouteStop } from '../types'
 
 // Helper function to extract all properties from an error object
-function extractErrorInfo(error: any): Record<string, any> {
+function extractErrorInfo(error: unknown): Record<string, string> {
   const info: Record<string, any> = {};
   
   // Get all own property names (enumerable and non-enumerable)
@@ -18,7 +18,8 @@ function extractErrorInfo(error: any): Record<string, any> {
   
   for (const key of allKeys) {
     try {
-      const value = (error as any)[key];
+      const errorObj = error as Record<string, unknown>;
+      const value = errorObj[key];
       if (value !== undefined) {
         info[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
       }
@@ -93,10 +94,15 @@ function rowToTrip(row: any): Trip {
     try {
       stops = typeof row.stops === 'string' ? JSON.parse(row.stops) : row.stops;
     } catch (e) {
-      console.error('Error parsing stops:', e);
+      // Silently handle parsing errors - stops will remain undefined
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error parsing stops:', e);
+      }
     }
   }
   
+  const distance = parseFloat(String(row.distance || 0));
   return {
     id: row.id,
     tripNumber: row.trip_number || '',
@@ -108,7 +114,7 @@ function rowToTrip(row: any): Trip {
     originLocation: row.origin_location as Location | undefined,
     destinationLocation: row.destination_location as Location | undefined,
     stops: stops,
-    distance: parseFloat(row.distance),
+    distance: isNaN(distance) ? 0 : distance,
     cargoDetails: row.cargo_details || undefined,
     notes: row.notes || undefined,
     unitId: row.unit_id || undefined,
@@ -119,12 +125,13 @@ function rowToTrip(row: any): Trip {
 
 // Helper to convert database row to Transaction
 function rowToTransaction(row: any): Transaction {
+  const amount = parseFloat(String(row.amount || 0));
   return {
     id: row.id,
     type: row.type as 'income' | 'expense',
     category: row.category,
     description: row.description,
-    amount: parseFloat(row.amount),
+    amount: isNaN(amount) ? 0 : amount,
     originalCurrency: row.original_currency as 'USD' | 'CAD',
     date: row.date,
     unitId: row.unit_id || undefined,
@@ -138,6 +145,8 @@ function rowToTransaction(row: any): Transaction {
 
 // Helper to convert database row to Unit
 function rowToUnit(row: any): Unit {
+  const staticCost = parseFloat(String(row.static_cost || 0));
+  const odometerReading = parseFloat(String(row.odometer_reading || 0));
   return {
     id: row.id,
     make: row.make,
@@ -147,8 +156,8 @@ function rowToUnit(row: any): Unit {
     plate: row.plate || '',
     province: row.province || '',
     country: (row.country as 'USA' | 'Canada') || 'USA',
-    staticCost: parseFloat(row.static_cost),
-    odometerReading: row.odometer_reading,
+    staticCost: isNaN(staticCost) ? 0 : staticCost,
+    odometerReading: isNaN(odometerReading) ? 0 : odometerReading,
   }
 }
 

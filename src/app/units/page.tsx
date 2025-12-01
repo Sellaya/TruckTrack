@@ -301,11 +301,11 @@ export default function UnitsPage() {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
-      console.error('Error deleting unit:', error);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while deleting the unit.";
       toast({
         title: "Error",
-        description: error.message || "An unexpected error occurred while deleting the unit.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
