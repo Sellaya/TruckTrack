@@ -1480,133 +1480,130 @@ export default function DriverDashboardViewPage() {
                       className="cursor-pointer"
                       onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
                     >
-                      <div className="p-3 sm:p-4 lg:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
-                        <div className="flex flex-col gap-3 sm:gap-4">
-                          {/* Header Row */}
-                          <div className="flex items-start justify-between gap-3 sm:gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h3 className="font-bold text-base sm:text-lg lg:text-xl truncate text-foreground mb-1.5">
-                                    {trip.name || 'Unnamed Trip'}
-                                  </h3>
-                                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 h-5 sm:h-6 shadow-sm">
-                                    Upcoming
-                                  </Badge>
-                                </div>
-                              </div>
-
-                              {/* Route Information */}
-                              <div className="ml-0 sm:ml-[52px] space-y-2.5 sm:space-y-3">
-                                <div className="w-full">
-                                  <div className="flex items-start gap-2.5 min-w-0 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-blue-100/30 border-2 border-blue-200/50">
-                                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                      <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-gray-600 mb-1.5">Route</div>
-                                      <div className="flex flex-col gap-1.5">
-                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
-                                          <span className="truncate block">{trip.origin || 'Origin TBD'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <div className="flex-1 h-px bg-gray-300"></div>
-                                          <span className="text-primary text-xs font-medium">↓</span>
-                                          <div className="flex-1 h-px bg-gray-300"></div>
-                                        </div>
-                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
-                                          <span className="truncate block">{trip.destination || 'Destination TBD'}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Details Grid */}
-                                <div className="grid grid-cols-1 gap-2">
-                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                    <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-muted-foreground mb-1">Start Date</div>
-                                      <div className="text-sm font-semibold text-foreground">
-                                        {trip.startDate ? (
-                                          format(new Date(trip.startDate), 'MMM d, yyyy')
-                                        ) : (
-                                          <span className="text-muted-foreground font-normal">Date TBD</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                    <Route className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-muted-foreground mb-1">Distance</div>
-                                      <DistanceDisplay 
-                                        distance={trip.distance || 0}
-                                        variant="default"
-                                        showLabel={false}
-                                        className="text-sm font-semibold"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {expenses.length > 0 && (
-                                    <div className="flex flex-col gap-1.5 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-green-50/50 to-green-100/30 border-2 border-green-200/50">
-                                      <div className="text-xs font-semibold text-gray-700">Total Expenses</div>
-                                      <GrandTotalDisplay
-                                        cadAmount={totals.cad}
-                                        usdAmount={totals.usd}
-                                        primaryCurrency={primaryCurrency}
-                                        cadToUsdRate={cadToUsdRate}
-                                        usdToCadRate={usdToCadRate}
-                                        variant="compact"
-                                        className="text-sm"
-                                      />
-                                    </div>
-                                  )}
-
-                                  {trip.cargoDetails && (
-                                    <div className="p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                      <div className="text-xs font-medium text-muted-foreground mb-1.5">Cargo Details</div>
-                                      <div className="text-sm font-medium text-foreground line-clamp-2 leading-relaxed">{trip.cargoDetails}</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Button */}
-                            <div className="flex flex-col gap-2 flex-shrink-0">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openExpenseDialog(trip.id);
-                                }}
-                                className="whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700"
-                              >
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                <span className="hidden sm:inline">Add Expense</span>
-                                <span className="sm:hidden">Add</span>
-                              </Button>
-                              {expenses.length > 0 && (
-                                <div className="text-center">
-                                  <Badge variant="outline" className="text-xs">
-                                    {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
-                                  </Badge>
-                                </div>
+                      <div className="p-4 sm:p-5 lg:p-6 bg-card">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                              {isExpanded ? (
+                                <ChevronDown className="h-5 w-5 text-blue-600" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5 text-blue-600" />
                               )}
                             </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-bold text-lg sm:text-xl text-foreground truncate">
+                                  {trip.name || 'Unnamed Trip'}
+                                </h3>
+                                <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-xs px-2.5 py-1 h-6 shadow-sm">
+                                  Upcoming
+                                </Badge>
+                              </div>
+                            </div>
                           </div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openExpenseDialog(trip.id);
+                            }}
+                            className="bg-[#0073ea] hover:bg-[#0058c2] text-white shadow-sm flex-shrink-0"
+                          >
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">Add Expense</span>
+                            <span className="sm:hidden">Add</span>
+                          </Button>
+                        </div>
+
+                        {/* Trip Details Grid */}
+                        <div className="space-y-4">
+                          {/* Route Card - Full Width */}
+                          <div className="p-4 sm:p-5 rounded-lg border-2 border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-blue-100/30">
+                            <div className="flex items-center gap-2 mb-4">
+                              <MapPin className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                              <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Route</span>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="text-base sm:text-lg font-bold text-foreground">
+                                {trip.origin || 'Origin TBD'}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 h-0.5 bg-blue-300"></div>
+                                <ChevronDown className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                                <div className="flex-1 h-0.5 bg-blue-300"></div>
+                              </div>
+                              <div className="text-base sm:text-lg font-bold text-foreground">
+                                {trip.destination || 'Destination TBD'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Details Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {/* Start Date Card */}
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Start Date</span>
+                              </div>
+                              <div className="text-base font-bold text-foreground">
+                                {trip.startDate ? (
+                                  format(new Date(trip.startDate), 'MMM d, yyyy')
+                                ) : (
+                                  <span className="text-muted-foreground font-normal">Date TBD</span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Distance Card */}
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Route className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Distance</span>
+                              </div>
+                              <DistanceDisplay 
+                                distance={trip.distance || 0}
+                                variant="default"
+                                showLabel={false}
+                                className="text-base font-bold"
+                              />
+                            </div>
+
+                            {/* Total Expenses Card */}
+                            {expenses.length > 0 && (
+                              <div className="p-4 sm:p-5 rounded-lg border-2 border-green-200/50 bg-gradient-to-br from-green-50/50 to-green-100/30">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                  <span className="text-sm font-semibold text-green-700">Total Expenses</span>
+                                </div>
+                                <GrandTotalDisplay
+                                  cadAmount={totals.cad}
+                                  usdAmount={totals.usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                  className="text-base font-bold"
+                                />
+                                <div className="mt-3 pt-3 border-t border-green-200/50">
+                                  <span className="text-sm font-medium text-green-700">{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Cargo Details Card */}
+                          {trip.cargoDetails && (
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Package className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Cargo Details</span>
+                              </div>
+                              <div className="text-sm font-medium text-foreground leading-relaxed">{trip.cargoDetails}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1985,130 +1982,130 @@ export default function DriverDashboardViewPage() {
                       className="cursor-pointer"
                       onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
                     >
-                      <div className="p-4 sm:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
-                        <div className="flex flex-col gap-4">
-                          {/* Header Row */}
-                          <div className="flex items-start justify-between gap-4">
+                      <div className="p-4 sm:p-5 lg:p-6 bg-card">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                              {isExpanded ? (
+                                <ChevronDown className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5 text-green-600" />
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <ChevronRight className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h3 className="font-bold text-lg sm:text-xl truncate text-foreground mb-1">
-                                    {trip.name || 'Unnamed Trip'}
-                                  </h3>
-                                  <Badge className="bg-green-500 hover:bg-green-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 h-5 sm:h-6 shadow-sm">
-                                    Completed
-                                  </Badge>
-                                </div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-bold text-lg sm:text-xl text-foreground truncate">
+                                  {trip.name || 'Unnamed Trip'}
+                                </h3>
+                                <Badge className="bg-green-500 hover:bg-green-600 text-white border-0 text-xs px-2.5 py-1 h-6 shadow-sm">
+                                  Completed
+                                </Badge>
                               </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openExpenseDialog(trip.id);
+                            }}
+                            className="bg-[#0073ea] hover:bg-[#0058c2] text-white shadow-sm flex-shrink-0"
+                          >
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">Add Expense</span>
+                            <span className="sm:hidden">Add</span>
+                          </Button>
+                        </div>
 
-                              {/* Route Information */}
-                              <div className="ml-0 sm:ml-[52px] space-y-2.5 sm:space-y-3">
-                                <div className="w-full">
-                                  <div className="flex items-start gap-2.5 min-w-0 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-blue-100/30 border-2 border-blue-200/50">
-                                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                      <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-gray-600 mb-1.5">Route</div>
-                                      <div className="flex flex-col gap-1.5">
-                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
-                                          <span className="truncate block">{trip.origin || 'Origin TBD'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <div className="flex-1 h-px bg-gray-300"></div>
-                                          <span className="text-primary text-xs font-medium">↓</span>
-                                          <div className="flex-1 h-px bg-gray-300"></div>
-                                        </div>
-                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
-                                          <span className="truncate block">{trip.destination || 'Destination TBD'}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
+                        {/* Trip Details Grid */}
+                        <div className="space-y-4">
+                          {/* Route Card - Full Width */}
+                          <div className="p-4 sm:p-5 rounded-lg border-2 border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-blue-100/30">
+                            <div className="flex items-center gap-2 mb-4">
+                              <MapPin className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                              <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Route</span>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="text-base sm:text-lg font-bold text-foreground">
+                                {trip.origin || 'Origin TBD'}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 h-0.5 bg-blue-300"></div>
+                                <ChevronDown className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                                <div className="flex-1 h-0.5 bg-blue-300"></div>
+                              </div>
+                              <div className="text-base sm:text-lg font-bold text-foreground">
+                                {trip.destination || 'Destination TBD'}
+                              </div>
+                            </div>
+                          </div>
 
-                                {/* Details Grid */}
-                                <div className="grid grid-cols-1 gap-2">
-                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                    <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-muted-foreground mb-1">Completed Date</div>
-                                      <div className="text-sm font-semibold text-foreground">
-                                        {trip.endDate ? format(new Date(trip.endDate), 'MMM d, yyyy') : <span className="text-muted-foreground font-normal">Date TBD</span>}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                    <Route className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-muted-foreground mb-1">Distance</div>
-                                      <DistanceDisplay 
-                                        distance={trip.distance || 0}
-                                        variant="default"
-                                        showLabel={false}
-                                        className="text-sm font-semibold"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {expenses.length > 0 && (
-                                    <div className="flex flex-col gap-1.5 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-green-50/50 to-green-100/30 border-2 border-green-200/50">
-                                      <div className="text-xs font-semibold text-gray-700">Total Expenses</div>
-                                      <GrandTotalDisplay
-                                        cadAmount={totals.cad}
-                                        usdAmount={totals.usd}
-                                        primaryCurrency={primaryCurrency}
-                                        cadToUsdRate={cadToUsdRate}
-                                        usdToCadRate={usdToCadRate}
-                                        variant="compact"
-                                        className="text-sm"
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Cargo Details */}
-                                {trip.cargoDetails && (
-                                  <div className="ml-0 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
-                                    <div className="text-xs font-medium text-muted-foreground mb-1.5">Cargo Details</div>
-                                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-relaxed">{trip.cargoDetails}</div>
-                                  </div>
+                          {/* Details Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {/* Completed Date Card */}
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Completed Date</span>
+                              </div>
+                              <div className="text-base font-bold text-foreground">
+                                {trip.endDate ? (
+                                  format(new Date(trip.endDate), 'MMM d, yyyy')
+                                ) : (
+                                  <span className="text-muted-foreground font-normal">Date TBD</span>
                                 )}
                               </div>
                             </div>
-
-                            {/* Action Button */}
-                            <div className="flex flex-col gap-2 flex-shrink-0">
-                              <Button
+                            
+                            {/* Distance Card */}
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Route className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Distance</span>
+                              </div>
+                              <DistanceDisplay 
+                                distance={trip.distance || 0}
                                 variant="default"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openExpenseDialog(trip.id);
-                                }}
-                                className="whitespace-nowrap shadow-sm bg-green-600 hover:bg-green-700"
-                              >
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                <span className="hidden sm:inline">Add Expense</span>
-                                <span className="sm:hidden">Add</span>
-                              </Button>
-                              {expenses.length > 0 && (
-                                <div className="text-center">
-                                  <Badge variant="outline" className="text-xs">
-                                    {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
-                                  </Badge>
-                                </div>
-                              )}
+                                showLabel={false}
+                                className="text-base font-bold"
+                              />
                             </div>
+
+                            {/* Total Expenses Card */}
+                            {expenses.length > 0 && (
+                              <div className="p-4 sm:p-5 rounded-lg border-2 border-green-200/50 bg-gradient-to-br from-green-50/50 to-green-100/30">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                  <span className="text-sm font-semibold text-green-700">Total Expenses</span>
+                                </div>
+                                <GrandTotalDisplay
+                                  cadAmount={totals.cad}
+                                  usdAmount={totals.usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                  className="text-base font-bold"
+                                />
+                                <div className="mt-3 pt-3 border-t border-green-200/50">
+                                  <span className="text-sm font-medium text-green-700">{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Cargo Details Card */}
+                          {trip.cargoDetails && (
+                            <div className="p-4 sm:p-5 rounded-lg border border-border bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Package className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm font-semibold text-muted-foreground">Cargo Details</span>
+                              </div>
+                              <div className="text-sm font-medium text-foreground leading-relaxed">{trip.cargoDetails}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
