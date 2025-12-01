@@ -41,9 +41,7 @@ export default function ViewDriversPage() {
   }, []);
 
   const handleViewDashboard = (driverId: string) => {
-    console.log('Navigating to driver dashboard:', driverId);
     if (!driverId) {
-      console.error('Driver ID is missing');
       toast({
         title: "Error",
         description: "Driver ID is missing. Please try again.",
@@ -52,11 +50,7 @@ export default function ViewDriversPage() {
       return;
     }
     const path = `/admin/drivers/${driverId}/dashboard`;
-    console.log('Navigation path:', path);
-    
-    // Use window.location as primary method to avoid Next.js prefetch issues
-    // This is more reliable for dynamic routes
-    window.location.href = path;
+    router.push(path);
   };
 
   return (
@@ -86,55 +80,91 @@ export default function ViewDriversPage() {
               <p className="text-lg text-muted-foreground">No drivers found.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>License Number</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile: Card layout */}
+              <div className="grid gap-3 sm:gap-4 md:hidden">
                 {drivers.map((driver) => (
-                  <TableRow key={driver.id}>
-                    <TableCell className="font-medium">{driver.name}</TableCell>
-                    <TableCell>{driver.email}</TableCell>
-                    <TableCell>{driver.phone || '-'}</TableCell>
-                    <TableCell>{driver.licenseNumber || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={driver.isActive ? "default" : "secondary"}>
-                        {driver.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{format(new Date(driver.createdAt), 'MMM d, yyyy')}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('Button clicked for driver:', driver.id, driver.name);
-                          if (driver.id) {
-                            handleViewDashboard(driver.id);
-                          } else {
-                            console.error('Driver ID is missing:', driver);
-                          }
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Dashboard
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                  <button
+                    key={driver.id}
+                    type="button"
+                    onClick={() => handleViewDashboard(driver.id)}
+                    className="text-left bg-card border border-border rounded-lg p-4 shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-sm text-foreground truncate">
+                            {driver.name}
+                          </p>
+                          <Badge variant={driver.isActive ? "default" : "secondary"}>
+                            {driver.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {driver.email}
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>Phone: <span className="text-foreground">{driver.phone || '-'}</span></p>
+                          <p>License: <span className="text-foreground">{driver.licenseNumber || '-'}</span></p>
+                        </div>
+                      </div>
+                      <Eye className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Joined {format(new Date(driver.createdAt), 'MMM d, yyyy')}
+                    </p>
+                  </button>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop: Table layout */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>License Number</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {drivers.map((driver) => (
+                      <TableRow key={driver.id}>
+                        <TableCell className="font-medium">{driver.name}</TableCell>
+                        <TableCell>{driver.email}</TableCell>
+                        <TableCell>{driver.phone || '-'}</TableCell>
+                        <TableCell>{driver.licenseNumber || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={driver.isActive ? "default" : "secondary"}>
+                            {driver.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(driver.createdAt), 'MMM d, yyyy')}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleViewDashboard(driver.id);
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Dashboard
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
