@@ -1460,62 +1460,504 @@ export default function DriverDashboardViewPage() {
 
       {/* Upcoming Trips */}
       {upcomingTrips.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Upcoming Trips ({upcomingTrips.length})
+        <Card className="overflow-hidden mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-blue-500/5 via-blue-500/10 to-blue-500/5 border-b p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              </div>
+              <span className="truncate">Upcoming Trips ({upcomingTrips.length})</span>
             </CardTitle>
-            <CardDescription>Scheduled trips</CardDescription>
+            <CardDescription className="mt-2 text-xs sm:text-sm">Scheduled trips - click to view details</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Trip Name</TableHead>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Distance</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>Cargo</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {upcomingTrips.map((trip) => (
-                    <TableRow key={trip.id}>
-                      <TableCell className="font-medium">{trip.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-medium">{trip.origin}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="font-medium">{trip.destination}</span>
+          <CardContent className="p-3 sm:p-4 lg:p-6">
+            <div className="space-y-4">
+              {upcomingTrips.map((trip) => {
+                const expenses = tripExpenses[trip.id] || [];
+                const isExpanded = expandedTripId === trip.id;
+                const totals = getTripTotalExpenses(trip.id);
+                return (
+                  <Card key={trip.id} className={`overflow-hidden border-2 transition-all duration-200 ${isExpanded ? 'border-blue-500/50 shadow-lg' : 'hover:border-blue-500/30 hover:shadow-md'}`}>
+                    <div 
+                      className="cursor-pointer"
+                      onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                    >
+                      <div className="p-3 sm:p-4 lg:p-6 bg-gradient-to-br from-muted/50 via-background to-muted/30">
+                        <div className="flex flex-col gap-3 sm:gap-4">
+                          {/* Header Row */}
+                          <div className="flex items-start justify-between gap-3 sm:gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-bold text-base sm:text-lg lg:text-xl truncate text-foreground mb-1.5">
+                                    {trip.name || 'Unnamed Trip'}
+                                  </h3>
+                                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 h-5 sm:h-6 shadow-sm">
+                                    Upcoming
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Route Information */}
+                              <div className="ml-0 sm:ml-[52px] space-y-2.5 sm:space-y-3">
+                                <div className="w-full">
+                                  <div className="flex items-start gap-2.5 min-w-0 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-blue-100/30 border-2 border-blue-200/50">
+                                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-gray-600 mb-1.5">Route</div>
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.origin || 'Origin TBD'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                          <span className="text-primary text-xs font-medium">↓</span>
+                                          <div className="flex-1 h-px bg-gray-300"></div>
+                                        </div>
+                                        <div className="text-sm font-semibold text-gray-900 leading-tight">
+                                          <span className="truncate block">{trip.destination || 'Destination TBD'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Details Grid */}
+                                <div className="grid grid-cols-1 gap-2">
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Start Date</div>
+                                      <div className="text-sm font-semibold text-foreground">
+                                        {trip.startDate ? (
+                                          format(new Date(trip.startDate), 'MMM d, yyyy')
+                                        ) : (
+                                          <span className="text-muted-foreground font-normal">Date TBD</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                    <Route className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Distance</div>
+                                      <DistanceDisplay 
+                                        distance={trip.distance || 0}
+                                        variant="default"
+                                        showLabel={false}
+                                        className="text-sm font-semibold"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {expenses.length > 0 && (
+                                    <div className="flex flex-col gap-1.5 p-2.5 sm:p-3 rounded-lg bg-gradient-to-r from-green-50/50 to-green-100/30 border-2 border-green-200/50">
+                                      <div className="text-xs font-semibold text-gray-700">Total Expenses</div>
+                                      <GrandTotalDisplay
+                                        cadAmount={totals.cad}
+                                        usdAmount={totals.usd}
+                                        primaryCurrency={primaryCurrency}
+                                        cadToUsdRate={cadToUsdRate}
+                                        usdToCadRate={usdToCadRate}
+                                        variant="compact"
+                                        className="text-sm"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {trip.cargoDetails && (
+                                    <div className="p-2.5 sm:p-3 rounded-lg bg-background/60 border border-border/50">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1.5">Cargo Details</div>
+                                      <div className="text-sm font-medium text-foreground line-clamp-2 leading-relaxed">{trip.cargoDetails}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openExpenseDialog(trip.id);
+                                }}
+                                className="whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700"
+                              >
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">Add Expense</span>
+                                <span className="sm:hidden">Add</span>
+                              </Button>
+                              {expenses.length > 0 && (
+                                <div className="text-center">
+                                  <Badge variant="outline" className="text-xs">
+                                    {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <DistanceDisplay 
-                          distance={trip.distance || 0}
-                          variant="compact"
-                          showLabel={false}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {format(new Date(trip.startDate), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                    
+                    {isExpanded && (
+                      <div className="p-3 sm:p-4 lg:p-6 border-t bg-muted/20 space-y-3 sm:space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
+                          <h4 className="font-bold text-base sm:text-lg lg:text-xl flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                            Trip Expenses
+                          </h4>
+                          <Badge variant="outline" className="text-xs sm:text-sm self-start sm:self-center">
+                            {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+                          </Badge>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {trip.cargoDetails || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">Upcoming</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        
+                        {/* CAD Expenses */}
+                        {expenses.filter(e => e.originalCurrency === 'CAD').length > 0 && (
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-blue-50/80 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">CAD Expenses</span>
+                              </h5>
+                              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
+                                {totals.cad.toFixed(2)} CAD
+                              </Badge>
+                            </div>
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'CAD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/50">
+                                    <TableHead className="font-semibold">Description</TableHead>
+                                    <TableHead className="font-semibold">Category</TableHead>
+                                    <TableHead className="font-semibold">Date</TableHead>
+                                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                                    <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {expenses
+                                    .filter(e => e.originalCurrency === 'CAD')
+                                    .map((expense) => (
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
+                                        <TableCell className="font-medium">{expense.description}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="CAD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.receiptUrl ? (
+                                            <a
+                                              href={expense.receiptUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
+                                            >
+                                              <Receipt className="h-4 w-4" />
+                                              View
+                                            </a>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* USD Expenses */}
+                        {expenses.filter(e => e.originalCurrency === 'USD').length > 0 && (
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-foreground" />
+                                </div>
+                                <span className="text-foreground">USD Expenses</span>
+                              </h5>
+                              <Badge variant="outline" className="bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 self-start sm:self-center">
+                                {totals.usd.toFixed(2)} USD
+                              </Badge>
+                            </div>
+                            
+                            {/* Mobile: Card Layout */}
+                            <div className="md:hidden space-y-3">
+                              {expenses
+                                .filter(e => e.originalCurrency === 'USD')
+                                .map((expense) => (
+                                  <div key={expense.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <h6 className="font-semibold text-sm sm:text-base text-gray-900 truncate mb-1">
+                                          {expense.description}
+                                        </h6>
+                                        <Badge variant="destructive" className="text-xs mb-2">
+                                          {expense.category}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openExpenseDialog(trip.id, expense);
+                                        }}
+                                        className="h-8 w-8 p-0 flex-shrink-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        <span className="ml-1 font-medium text-gray-900">{format(new Date(expense.date), 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-gray-500">Amount:</span>
+                                        <div className="ml-1 font-semibold text-gray-900">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {expense.receiptUrl && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <a
+                                          href={expense.receiptUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
+                                        >
+                                          <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                          View Receipt
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                            
+                            {/* Desktop: Table Layout */}
+                            <div className="hidden md:block overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/50">
+                                    <TableHead className="font-semibold">Description</TableHead>
+                                    <TableHead className="font-semibold">Category</TableHead>
+                                    <TableHead className="font-semibold">Date</TableHead>
+                                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                                    <TableHead className="font-semibold">Receipt</TableHead>
+                                    <TableHead className="font-semibold text-center">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {expenses
+                                    .filter(e => e.originalCurrency === 'USD')
+                                    .map((expense) => (
+                                      <TableRow key={expense.id} className="hover:bg-muted/30">
+                                        <TableCell className="font-medium">{expense.description}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="destructive" className="text-xs">{expense.category}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-sm">{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                          <CurrencyDisplay
+                                            amount={expense.amount}
+                                            originalCurrency="USD"
+                                            variant="inline"
+                                            showLabel={false}
+                                            cadToUsdRate={cadToUsdRate}
+                                            usdToCadRate={usdToCadRate}
+                                            className="font-semibold text-foreground"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.receiptUrl ? (
+                                            <a
+                                              href={expense.receiptUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
+                                            >
+                                              <Receipt className="h-4 w-4" />
+                                              View
+                                            </a>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openExpenseDialog(trip.id, expense);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grand Total */}
+                        {expenses.length > 0 && (
+                          <div className="border-2 rounded-xl p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-muted/80 to-muted/50 border-border/50 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                              <h5 className="font-bold text-sm sm:text-base lg:text-lg flex items-center gap-2">
+                                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-foreground" />
+                                </div>
+                                <span className="text-foreground">Grand Total</span>
+                              </h5>
+                              <div className="self-start sm:self-center">
+                                <GrandTotalDisplay
+                                  cadAmount={getTripTotalExpenses(trip.id).cad}
+                                  usdAmount={getTripTotalExpenses(trip.id).usd}
+                                  primaryCurrency={primaryCurrency}
+                                  cadToUsdRate={cadToUsdRate}
+                                  usdToCadRate={usdToCadRate}
+                                  variant="compact"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {expenses.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <DollarSign className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No expenses recorded for this trip yet.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1523,15 +1965,15 @@ export default function DriverDashboardViewPage() {
 
       {/* Completed Trips */}
       {completedTrips.length > 0 && (
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-green-5 via-green-10 to-green-5 border-b">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <Package className="h-5 w-5 text-green-600 dark:text-green-400" />
+        <Card className="overflow-hidden mb-4 sm:mb-6">
+          <CardHeader className="bg-gradient-to-r from-green-500/5 via-green-500/10 to-green-500/5 border-b p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
               </div>
-              Completed Trips ({completedTrips.length})
+              <span className="truncate">Completed Trips ({completedTrips.length})</span>
             </CardTitle>
-            <CardDescription className="mt-2">Past completed trips - click to view details and expenses</CardDescription>
+            <CardDescription className="mt-2 text-xs sm:text-sm">Past completed trips - click to view details and expenses</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <div className="space-y-4">
@@ -1562,7 +2004,7 @@ export default function DriverDashboardViewPage() {
                                   <h3 className="font-bold text-lg sm:text-xl truncate text-foreground mb-1">
                                     {trip.name || 'Unnamed Trip'}
                                   </h3>
-                                  <Badge variant="outline" className="bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 h-6 sm:h-7">
+                                  <Badge className="bg-green-500 hover:bg-green-600 text-white border-0 text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 h-5 sm:h-6 shadow-sm">
                                     Completed
                                   </Badge>
                                 </div>
