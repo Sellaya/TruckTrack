@@ -512,19 +512,14 @@ export default function DriverDashboardViewPage() {
     setExpenseDialogOpen(true);
   };
 
-  // Calculate totals separately by currency (for all expenses)
-  const expenses = transactions.filter(t => t.type === 'expense');
-  const cadTotal = expenses
+  // Calculate totals separately by currency (for all expenses) - single calculation
+  const allExpenses = transactions.filter(t => t.type === 'expense');
+  const cadTotal = allExpenses
     .filter(t => t.originalCurrency === 'CAD')
     .reduce((sum, t) => sum + t.amount, 0);
-  const usdTotal = expenses
+  const usdTotal = allExpenses
     .filter(t => t.originalCurrency === 'USD')
     .reduce((sum, t) => sum + t.amount, 0);
-  
-  // Calculate grand total by converting to primary currency
-  const cadInPrimary = convertCurrency(cadTotal, 'CAD', primaryCurrency, cadToUsdRate, usdToCadRate);
-  const usdInPrimary = convertCurrency(usdTotal, 'USD', primaryCurrency, cadToUsdRate, usdToCadRate);
-  const grandTotal = cadInPrimary + usdInPrimary;
 
   if (isLoading) {
     return (
@@ -561,67 +556,72 @@ export default function DriverDashboardViewPage() {
   }
 
   return (
-    <div className="flex flex-col bg-white min-h-screen w-full overflow-x-hidden">
+    <div className="flex flex-col min-h-screen w-full overflow-x-hidden bg-background">
       {/* Header Section - Monday.com Style */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+      <div className="sticky top-0 z-20 bg-white border-b border-border w-full">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 w-full max-w-full">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <Button
               variant="ghost"
               onClick={() => router.push('/drivers')}
-              className="h-9 px-2 sm:px-3 rounded-lg -ml-2 flex-shrink-0"
+              className="h-9 px-2 sm:px-3 rounded-lg -ml-2 flex-shrink-0 hover:bg-muted"
             >
               <ArrowLeft className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Back to Drivers</span>
             </Button>
-            <div className="h-6 w-px bg-gray-300 flex-shrink-0 hidden sm:block" />
-            <h1 className="text-lg sm:text-2xl font-semibold text-gray-900 truncate">{driver.name}</h1>
+            <div className="h-6 w-px bg-border flex-shrink-0 hidden sm:block" />
+            <div className="flex flex-col min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl font-semibold text-foreground truncate">{driver.name}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Driver Dashboard</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-4 sm:py-6">
+      <div className="flex-1 w-full overflow-x-hidden px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Driver Info Card - Monday.com Style */}
-        <Card className="mb-4 sm:mb-6 border border-gray-200 rounded-lg shadow-sm">
+        <Card className="border border-border rounded-lg shadow-sm bg-card">
           <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-[#0073ea]/10 flex items-center justify-center flex-shrink-0">
-                <User className="h-7 w-7 sm:h-8 sm:w-8 text-[#0073ea]" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <User className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
               </div>
-              <div className="flex-1 min-w-0 w-full">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate flex-1 min-w-0">{driver.name}</h2>
+              <div className="flex-1 min-w-0 w-full space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground truncate flex-1 min-w-0">{driver.name}</h2>
                   <Badge 
                     variant={driver.isActive ? "default" : "secondary"}
                     className={`rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
                       driver.isActive 
-                        ? 'bg-green-100 text-green-700 border-green-200' 
-                        : 'bg-gray-100 text-gray-700 border-gray-200'
+                        ? 'bg-green-500/10 text-green-700 border-green-200' 
+                        : 'bg-muted text-muted-foreground border-border'
                     }`}
                   >
                     {driver.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
-                <div className="flex flex-col gap-2 sm:gap-3">
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                    <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="truncate min-w-0">{driver.email}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Mail className="h-4 w-4 flex-shrink-0" />
+                    <a href={`mailto:${driver.email}`} className="text-primary hover:underline truncate min-w-0">
+                      {driver.email}
+                    </a>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    {driver.phone && (
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                        <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">{driver.phone}</span>
-                      </div>
-                    )}
-                    {driver.licenseNumber && (
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                        <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">{driver.licenseNumber}</span>
-                      </div>
-                    )}
-                  </div>
+                  {driver.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-4 w-4 flex-shrink-0" />
+                      <a href={`tel:${driver.phone}`} className="hover:text-foreground truncate">
+                        {driver.phone}
+                      </a>
+                    </div>
+                  )}
+                  {driver.licenseNumber && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <CreditCard className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{driver.licenseNumber}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -629,26 +629,26 @@ export default function DriverDashboardViewPage() {
         </Card>
 
         {/* Summary Cards - Monday.com Style */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <Card className="border border-gray-200 rounded-lg shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="border border-border rounded-lg shadow-sm bg-card hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-gray-900">Total Trips</CardTitle>
-              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Route className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-sm font-semibold text-foreground">Total Trips</CardTitle>
+              <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center">
+                <Route className="h-5 w-5 text-info" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{trips.length}</div>
-              <p className="text-xs text-gray-600 mt-1">
+              <div className="text-2xl font-bold text-foreground">{trips.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">
                 {completedTrips.length} completed, {ongoingTrips.length} ongoing, {upcomingTrips.length} upcoming
               </p>
             </CardContent>
           </Card>
-          <Card className="border border-gray-200 rounded-lg shadow-sm">
+          <Card className="border border-border rounded-lg shadow-sm bg-card hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-gray-900">Total Expenses</CardTitle>
-              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-sm font-semibold text-foreground">Total Expenses</CardTitle>
+              <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-success" />
               </div>
             </CardHeader>
             <CardContent>
@@ -663,9 +663,9 @@ export default function DriverDashboardViewPage() {
           </Card>
         </div>
 
-      {/* Filter and Sort Controls - Mobile: Accordion, Desktop: Card */}
-      {/* Mobile: Accordion */}
-      <div className="lg:hidden mb-6">
+        {/* Filter and Sort Controls - Mobile: Accordion, Desktop: Card */}
+        {/* Mobile: Accordion */}
+        <div className="lg:hidden">
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="filters" className="border border-gray-200 rounded-lg">
             <AccordionTrigger className="px-4 hover:no-underline">
@@ -790,8 +790,8 @@ export default function DriverDashboardViewPage() {
         </Accordion>
       </div>
 
-      {/* Desktop: Card */}
-      <Card className="hidden lg:block mb-6">
+        {/* Desktop: Card */}
+        <Card className="hidden lg:block border border-border rounded-lg shadow-sm bg-card">
         <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
           <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
             <Filter className="h-4 w-4 text-primary flex-shrink-0" />
@@ -949,9 +949,9 @@ export default function DriverDashboardViewPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
 
-      {/* Ongoing Trips */}
+        {/* Ongoing Trips */}
       {ongoingTrips.length > 0 && (
         <Card className="overflow-hidden mb-4 sm:mb-6">
           <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-b p-4 sm:p-6">
@@ -1083,7 +1083,7 @@ export default function DriverDashboardViewPage() {
                             </div>
 
                             {/* Action Button */}
-                            <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+                            <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0 sm:w-auto w-full">
                               <Button
                                 variant="default"
                                 size="sm"
@@ -1091,14 +1091,14 @@ export default function DriverDashboardViewPage() {
                                   e.stopPropagation();
                                   openExpenseDialog(trip.id);
                                 }}
-                                className="whitespace-nowrap shadow-sm flex-1 sm:flex-none"
+                                className="bg-[#0073ea] hover:bg-[#0058c2] text-white shadow-sm flex-1 sm:flex-none whitespace-nowrap"
                               >
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 <span className="hidden sm:inline">Add Expense</span>
                                 <span className="sm:hidden">Add</span>
                               </Button>
                               {expenses.length > 0 && (
-                                <Badge variant="outline" className="text-xs self-center">
+                                <Badge variant="outline" className="text-xs self-center w-full sm:w-auto justify-center">
                                   {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
                                 </Badge>
                               )}
@@ -1109,13 +1109,13 @@ export default function DriverDashboardViewPage() {
                     </div>
                     
                     {isExpanded && (
-                      <div className="p-4 sm:p-6 border-t bg-muted/20 space-y-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-bold text-lg sm:text-xl flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-primary" />
+                      <div className="p-3 sm:p-4 lg:p-6 border-t bg-muted/20 space-y-3 sm:space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
+                          <h4 className="font-bold text-base sm:text-lg lg:text-xl flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                             Trip Expenses
                           </h4>
-                          <Badge variant="outline" className="text-sm">
+                          <Badge variant="outline" className="text-xs sm:text-sm self-start sm:self-center">
                             {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
@@ -1456,9 +1456,9 @@ export default function DriverDashboardViewPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+        )}
 
-      {/* Upcoming Trips */}
+        {/* Upcoming Trips */}
       {upcomingTrips.length > 0 && (
         <Card className="overflow-hidden mb-4 sm:mb-6">
           <CardHeader className="bg-gradient-to-r from-blue-500/5 via-blue-500/10 to-blue-500/5 border-b p-4 sm:p-6">
@@ -1961,9 +1961,9 @@ export default function DriverDashboardViewPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+        )}
 
-      {/* Completed Trips */}
+        {/* Completed Trips */}
       {completedTrips.length > 0 && (
         <Card className="overflow-hidden mb-4 sm:mb-6">
           <CardHeader className="bg-gradient-to-r from-green-500/5 via-green-500/10 to-green-500/5 border-b p-4 sm:p-6">
@@ -2463,81 +2463,42 @@ export default function DriverDashboardViewPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+        )}
 
-      {/* Transactions */}
-      {transactions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" />
-              All Transactions ({transactions.length})
-            </CardTitle>
-            <CardDescription>Expense records</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactions
-                    .filter(t => t.type === 'expense')
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>
-                          <Badge variant="destructive">
-                            {transaction.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">{transaction.description}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{transaction.category}</Badge>
-                        </TableCell>
-                        <TableCell>{format(new Date(transaction.date), 'MMM d, yyyy')}</TableCell>
-                        <TableCell className="text-right">
-                          <CurrencyDisplay
-                            amount={transaction.amount}
-                            originalCurrency={transaction.originalCurrency}
-                            variant="compact"
-                            showLabel={false}
-                            cadToUsdRate={cadToUsdRate}
-                            usdToCadRate={usdToCadRate}
-                            className="items-end font-semibold text-foreground"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {/* Empty State - No Trips */}
+        {filteredAndSortedTrips.length === 0 && trips.length > 0 && (
+          <Card className="border border-border rounded-lg shadow-sm bg-card">
+            <CardContent className="p-8 sm:p-12 text-center">
+              <Route className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No trips match your filters</h3>
+              <p className="text-sm text-muted-foreground mb-4">Try adjusting your filter criteria to see more trips.</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilterStartDate('');
+                  setFilterEndDate('');
+                  setStatusFilter('all');
+                }}
+                className="h-9 px-4"
+              >
+                Clear Filters
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
-      {trips.length === 0 && transactions.length === 0 && (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-lg font-medium">No data found</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                This driver has no trips or transactions yet.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {trips.length === 0 && (
+          <Card className="border border-border rounded-lg shadow-sm bg-card">
+            <CardContent className="p-8 sm:p-12 text-center">
+              <Route className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No trips assigned yet</h3>
+              <p className="text-sm text-muted-foreground">This driver hasn't been assigned any trips yet.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-      {/* Add Expense Dialog - Monday.com Style */}
+      {/* Add Expense Dialog */}
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
@@ -2774,7 +2735,6 @@ export default function DriverDashboardViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
     </div>
   );
 }
