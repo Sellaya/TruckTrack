@@ -49,6 +49,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ImageViewer } from "@/components/ui/image-viewer";
 
 export default function DriverDashboardViewPage() {
   const router = useRouter();
@@ -89,6 +90,8 @@ export default function DriverDashboardViewPage() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
+  const [receiptViewerOpen, setReceiptViewerOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -1195,15 +1198,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -1246,15 +1251,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -1344,15 +1351,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -1395,15 +1404,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -1697,15 +1708,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -1748,15 +1761,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -1846,15 +1861,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -1897,15 +1914,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -2199,15 +2218,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -2250,15 +2271,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -2348,15 +2371,17 @@ export default function DriverDashboardViewPage() {
                                     </div>
                                     {expense.receiptUrl && (
                                       <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <a
-                                          href={expense.receiptUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViewingReceiptUrl(expense.receiptUrl || null);
+                                            setReceiptViewerOpen(true);
+                                          }}
                                           className="text-primary hover:underline flex items-center gap-1.5 text-xs sm:text-sm font-medium"
                                         >
                                           <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                           View Receipt
-                                        </a>
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -2399,15 +2424,17 @@ export default function DriverDashboardViewPage() {
                                         </TableCell>
                                         <TableCell>
                                           {expense.receiptUrl ? (
-                                            <a
-                                              href={expense.receiptUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewingReceiptUrl(expense.receiptUrl || null);
+                                                setReceiptViewerOpen(true);
+                                              }}
                                               className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                             >
                                               <Receipt className="h-4 w-4" />
                                               View
-                                            </a>
+                                            </button>
                                           ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                           )}
@@ -2748,6 +2775,14 @@ export default function DriverDashboardViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Image Viewer */}
+      <ImageViewer
+        open={receiptViewerOpen}
+        onOpenChange={setReceiptViewerOpen}
+        imageUrl={viewingReceiptUrl}
+        alt="Receipt"
+      />
     </div>
   );
 }

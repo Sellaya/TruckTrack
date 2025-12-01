@@ -42,6 +42,7 @@ import { formatBothCurrencies, convertCurrency, getPrimaryCurrency, getCADToUSDR
 import { DistanceDisplay } from '@/components/ui/distance-display';
 import { GrandTotalDisplay, CurrencyDisplay } from '@/components/ui/currency-display';
 import { DriverRouteGuard } from '@/components/driver-route-guard';
+import { ImageViewer } from '@/components/ui/image-viewer';
 
 function DriverDashboardContent() {
   const router = useRouter();
@@ -1137,15 +1138,17 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
-                                              <a
-                                                href={expense.receiptUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setViewingReceiptUrl(expense.receiptUrl || null);
+                                                  setReceiptViewerOpen(true);
+                                                }}
                                                 className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                               >
                                                 <Receipt className="h-4 w-4" />
                                                 View
-                                              </a>
+                                              </button>
                                             ) : (
                                               <span className="text-muted-foreground text-sm">-</span>
                                             )}
@@ -1230,15 +1233,17 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
-                                              <a
-                                                href={expense.receiptUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setViewingReceiptUrl(expense.receiptUrl || null);
+                                                  setReceiptViewerOpen(true);
+                                                }}
                                                 className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                               >
                                                 <Receipt className="h-4 w-4" />
                                                 View
-                                              </a>
+                                              </button>
                                             ) : (
                                               <span className="text-muted-foreground text-sm">-</span>
                                             )}
@@ -1488,15 +1493,17 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
-                                              <a
-                                                href={expense.receiptUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setViewingReceiptUrl(expense.receiptUrl || null);
+                                                  setReceiptViewerOpen(true);
+                                                }}
                                                 className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                               >
                                                 <Receipt className="h-4 w-4" />
                                                 View
-                                              </a>
+                                              </button>
                                             ) : (
                                               <span className="text-muted-foreground text-sm">-</span>
                                             )}
@@ -1581,15 +1588,17 @@ function DriverDashboardContent() {
                                           </TableCell>
                                           <TableCell>
                                             {expense.receiptUrl ? (
-                                              <a
-                                                href={expense.receiptUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setViewingReceiptUrl(expense.receiptUrl || null);
+                                                  setReceiptViewerOpen(true);
+                                                }}
                                                 className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
                                               >
                                                 <Receipt className="h-4 w-4" />
                                                 View
-                                              </a>
+                                              </button>
                                             ) : (
                                               <span className="text-muted-foreground text-sm">-</span>
                                             )}
@@ -1876,6 +1885,14 @@ function DriverDashboardContent() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Receipt Image Viewer */}
+        <ImageViewer
+          open={receiptViewerOpen}
+          onOpenChange={setReceiptViewerOpen}
+          imageUrl={viewingReceiptUrl}
+          alt="Receipt"
+        />
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ import { MultiStopRouteInput } from '@/components/ui/multi-stop-route-input';
 import { RouteDisplay } from '@/components/ui/route-display';
 import { DistanceDisplay } from '@/components/ui/distance-display';
 import { GrandTotalDisplay } from '@/components/ui/currency-display';
+import { ImageViewer } from '@/components/ui/image-viewer';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -91,6 +92,8 @@ function TripsPageContent(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
+  const [receiptViewerOpen, setReceiptViewerOpen] = useState(false);
   
   // Filter and sort states
   const [filterStartDate, setFilterStartDate] = useState('');
@@ -1797,17 +1800,19 @@ function TripsPageContent(): React.JSX.Element {
                                                                 </TableCell>
                                                                 <TableCell>
                                                                   {expense.receiptUrl ? (
-                                                                    <a
-                                                                      href={expense.receiptUrl}
-                                                                      target="_blank"
-                                                                      rel="noopener noreferrer"
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setViewingReceiptUrl(expense.receiptUrl || null);
+                                                                        setReceiptViewerOpen(true);
+                                                                      }}
                                                                       className="text-primary hover:underline flex items-center gap-1 text-sm"
-                                                                      onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                       <Receipt className="h-4 w-4" />
                                                                       <span>View</span>
                                                                       <ExternalLink className="h-3 w-3" />
-                                                                    </a>
+                                                                    </button>
                                                                   ) : (
                                                                     <span className="text-muted-foreground text-sm">-</span>
                                                                   )}
@@ -1896,6 +1901,14 @@ function TripsPageContent(): React.JSX.Element {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Receipt Image Viewer */}
+      <ImageViewer
+        open={receiptViewerOpen}
+        onOpenChange={setReceiptViewerOpen}
+        imageUrl={viewingReceiptUrl}
+        alt="Receipt"
+      />
     </div>
     </div>
   );
