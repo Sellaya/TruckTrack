@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon } from "lucide-react"
+import { Calendar as CalendarIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -177,33 +177,61 @@ export function DatePicker({
     }
   }, [minDate, normalizeDate]);
 
+  // Handle clear/reset date
+  const handleClear = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange('');
+  }, [onChange]);
+
   // ALWAYS use native date input on mobile/tablet for best UX
   if (isMobile) {
     return (
       <div className="relative w-full">
-        <input
-          id={id}
-          type="date"
-          value={nativeInputValue}
-          onChange={handleNativeInputChange}
-          min={nativeMinDate}
-          disabled={disabled}
-          required={required}
-          className={cn(
-            // Monday.com inspired styling - clean and modern
-            "flex h-11 w-full rounded-lg border border-gray-300 bg-white",
-            "px-4 py-2.5 text-base font-medium text-gray-900",
-            "focus:outline-none focus:ring-2 focus:ring-[#0073ea]/20 focus:border-[#0073ea]",
-            "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50",
-            "transition-all duration-200",
-            // Mobile-specific improvements
-            "touch-manipulation", // Better touch handling
-            "[color-scheme:light]", // Better mobile date picker appearance
-            disabled && "bg-gray-50",
-            className
+        <div className="relative flex items-center">
+          <input
+            id={id}
+            type="date"
+            value={nativeInputValue}
+            onChange={handleNativeInputChange}
+            min={nativeMinDate}
+            disabled={disabled}
+            required={required}
+            className={cn(
+              // Compact mobile styling - smaller and more screen-friendly
+              "flex h-9 sm:h-10 w-full rounded-lg border border-gray-300 bg-white",
+              "pl-3 pr-8 sm:pl-3 sm:pr-9 py-2 text-sm sm:text-base font-medium text-gray-900",
+              "focus:outline-none focus:ring-2 focus:ring-[#0073ea]/20 focus:border-[#0073ea]",
+              "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50",
+              "transition-all duration-200",
+              // Mobile-specific improvements
+              "touch-manipulation", // Better touch handling
+              "[color-scheme:light]", // Better mobile date picker appearance
+              disabled && "bg-gray-50",
+              className
+            )}
+            placeholder={placeholder}
+          />
+          {/* Clear button - only show when date is selected */}
+          {nativeInputValue && !disabled && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className={cn(
+                "absolute right-2 top-1/2 -translate-y-1/2",
+                "flex items-center justify-center",
+                "h-5 w-5 sm:h-6 sm:w-6 rounded-full",
+                "bg-gray-100 hover:bg-gray-200",
+                "text-gray-500 hover:text-gray-700",
+                "transition-colors duration-150",
+                "focus:outline-none focus:ring-2 focus:ring-[#0073ea]/20",
+                "touch-manipulation"
+              )}
+              aria-label="Clear date"
+            >
+              <X className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            </button>
           )}
-          placeholder={placeholder}
-        />
+        </div>
       </div>
     );
   }
@@ -216,8 +244,8 @@ export function DatePicker({
           id={id}
           variant={"outline"}
           className={cn(
-            // Monday.com inspired button styling
-            "w-full justify-start text-left font-medium h-11",
+            // Monday.com inspired button styling - compact for better space usage
+            "w-full justify-start text-left font-medium h-10",
             "rounded-lg border-gray-300 bg-white hover:bg-gray-50",
             "text-gray-900 hover:text-gray-900",
             "focus:outline-none focus:ring-2 focus:ring-[#0073ea] focus:border-[#0073ea]",
@@ -228,8 +256,30 @@ export function DatePicker({
           disabled={disabled}
           type="button"
         >
-          <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
-          {date ? format(date, "MMM d, yyyy") : <span>{placeholder}</span>}
+          <CalendarIcon className="mr-2 h-4 w-4 text-gray-500 flex-shrink-0" />
+          <span className="flex-1 text-left truncate">
+            {date ? format(date, "MMM d, yyyy") : <span>{placeholder}</span>}
+          </span>
+          {/* Clear button - only show when date is selected */}
+          {date && !disabled && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className={cn(
+                "ml-2 flex items-center justify-center flex-shrink-0",
+                "h-5 w-5 rounded-full",
+                "bg-gray-100 hover:bg-gray-200",
+                "text-gray-500 hover:text-gray-700",
+                "transition-colors duration-150",
+                "focus:outline-none focus:ring-2 focus:ring-[#0073ea]/20",
+                "touch-manipulation"
+              )}
+              aria-label="Clear date"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent 
