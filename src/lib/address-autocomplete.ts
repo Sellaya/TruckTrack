@@ -55,7 +55,9 @@ export async function fetchCitiesFromAPI(
 
   try {
     const encodedQuery = encodeURIComponent(query);
-    const url = `https://wft-geo-db.p.rapidapi.com/v1/geo/cities?namePrefix=${encodedQuery}&countryIds=CA,US&limit=10`;
+    // Use namePrefix for better matching - finds cities that start with or contain the query
+    // Increase limit to get more results, then filter for best matches
+    const url = `https://wft-geo-db.p.rapidapi.com/v1/geo/cities?namePrefix=${encodedQuery}&countryIds=CA,US&limit=20&types=CITY`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -77,7 +79,7 @@ export async function fetchCitiesFromAPI(
     }
 
     // Convert API response to CityLocation format
-    return data.data.map((city: GeoDBCity) => ({
+    const results = data.data.map((city: GeoDBCity) => ({
       name: city.name,
       state: city.region || city.regionCode || '',
       country: city.countryCode === 'CA' ? 'CA' : 'US',
@@ -85,13 +87,23 @@ export async function fetchCitiesFromAPI(
       longitude: city.longitude,
       type: 'API Result',
     }));
+
+    // Filter to ensure the query matches (case-insensitive)
+    // This helps catch cities like Brampton when typing "bram"
+    const lowerQuery = query.toLowerCase();
+    const filtered = results.filter(city => 
+      city.name.toLowerCase().includes(lowerQuery) ||
+      city.name.toLowerCase().startsWith(lowerQuery)
+    );
+
+    return filtered;
   } catch (error) {
     console.error('Error fetching cities from API:', error);
     return [];
   }
 }
 
-// Combined search: preloaded hubs first, then API if needed
+// Combined search: preloaded hubs first, then API always (to ensure all cities are found)
 export async function searchCities(
   query: string,
   apiKey?: string
@@ -99,13 +111,9 @@ export async function searchCities(
   // First, search preloaded hubs (instant)
   const hubResults = searchTruckingHubs(query);
 
-  // If we have good results from hubs, return them
-  if (hubResults.length >= 5) {
-    return hubResults;
-  }
-
-  // Otherwise, also search API and combine results
-  const apiResults = await fetchCitiesFromAPI(query, apiKey);
+  // Always try to fetch from API (if API key exists) to ensure we find all cities
+  // This ensures cities like Brampton show up even if not in preloaded hubs
+  const apiResults = apiKey ? await fetchCitiesFromAPI(query, apiKey) : [];
 
   // Combine and deduplicate (prefer hubs over API for same city)
   const combined: CityLocation[] = [...hubResults];
@@ -117,6 +125,25 @@ export async function searchCities(
       combined.push(apiCity);
     }
   }
+
+  // Sort: exact matches first, then partial matches, prioritizing hub cities
+  const lowerQuery = query.toLowerCase();
+  combined.sort((a, b) => {
+    // Prioritize hub cities
+    const aIsHub = a.type !== 'API Result';
+    const bIsHub = b.type !== 'API Result';
+    if (aIsHub && !bIsHub) return -1;
+    if (!aIsHub && bIsHub) return 1;
+    
+    // Then prioritize exact prefix matches
+    const aStartsWith = a.name.toLowerCase().startsWith(lowerQuery);
+    const bStartsWith = b.name.toLowerCase().startsWith(lowerQuery);
+    if (aStartsWith && !bStartsWith) return -1;
+    if (!aStartsWith && bStartsWith) return 1;
+    
+    // Finally, alphabetical order
+    return a.name.localeCompare(b.name);
+  });
 
   return combined.slice(0, 15); // Limit total results
 }
@@ -132,6 +159,13 @@ export function formatCityLocation(city: CityLocation): string {
 // Get API key from environment variables only (backend configuration)
 export function getGeoDBAPIKey(): string | undefined {
   // Only use environment variable - configured at backend/server level
-  return process.env.NEXT_PUBLIC_RAPIDAPI_KEY;
+  const key = process.env.NEXT_PUBLIC_RAPIDAPI_KEY;
+  
+  // Debug logging (can be removed in production)
+  if (!key) {
+    console.warn('RapidAPI key not found. City autocomplete will only show preloaded hubs.');
+  }
+  
+  return key;
 }
 
